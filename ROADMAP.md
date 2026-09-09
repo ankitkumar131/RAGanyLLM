@@ -81,7 +81,7 @@ The current pipeline is: chunk (600 chars) → embed → top-k cosine → stuff 
 
 ### 2.3 Context window management (P0 · M)
 - [x] **Token budget enforcement** — `/api/query` reads the model's context length via `ollama show` (fallback 4096 tokens when unknown), reserves ~70%, subtracts conversation history + query overhead, then keeps top matches (sorted by similarity) until the budget is full; if even the top match can't fit it is truncated with a visible marker. Reported to the UI as `context_budget.model_context_tokens / dropped_sources` in every response. *(done — remaining: per-model-family prompt templates)*
-- [ ] Prompt templates per model family (Llama, Qwen, Gemma, DeepSeek…) since instruction-following formats differ.
+- [x] **Prompt templates per model family** — `lib/prompts.js` detects the family from the model name (Llama, Qwen, Gemma, Mistral, DeepSeek, Phi, GPT; namespace-aware, unknown → neutral default) and the RAG system prompt is assembled from family-specific instruction templates with the Simple-mode **detail level** (concise/balanced/detailed, §1.3) applied on top. Every response echoes `prompt_family` + `retrieval_settings.detail`. Ollama's Modelfile still owns the low-level chat-template wrapping. *(done — UI detail dropdown + mode switch ship with §1.3)*
 
 ### 2.4 Conversational RAG (P1 · M)
 - [x] **Multi-turn memory**: chat history is tracked per conversation and sent to `/api/query` (client keeps last 12 messages; server validates roles — only `user`/`assistant`, no system-prompt injection — clamps to the most recent 12, caps per-message length, and places history after any RAG system prompt so follow-ups like "and what about its price?" stay in context). "🧹 New Chat" button clears the conversation + memory. *(done — remaining: query *rewriting* of follow-ups, memory-window slider, per-turn token usage)*
@@ -181,7 +181,8 @@ menu-bot.raganyllm            (future: ZIP)
 - **Export to cloud folder** (P2): watch a folder (Dropbox/Google Drive/iCloud/Obsidian) → auto-sync pack on change; import picks newest.
 
 ### 5.5 Plain export formats (P1 · S)
-- [x] **Markdown & JSONL exports** — `GET /api/kb/export/markdown` (readable, per-document headings) and `/api/kb/export/jsonl` (one chunk per line); both available as ⬇ buttons in the KB card. *(done — CSV + pretty HTML report remain)*
+- [x] **Markdown & JSONL exports** — `GET /api/kb/export/markdown` (readable, per-document headings) and `/api/kb/export/jsonl` (one chunk per line); both available as ⬇ buttons in the KB card. *(done)*
+- [x] **CSV & pretty HTML report** — `GET /api/kb/export/csv` (RFC-4180 quoted, spreadsheet-friendly) and `GET /api/kb/export/report` (printable HTML: KB stats + one section per document with its chunks, HTML-escaped) as ⬇ buttons in the KB card.
 
 ### 5.6 Backup & restore (P1 · M)
 - [x] **Auto-backups before destructive ops** — Clear KB and Replace-imports snapshot the previous KB first; rotating keep-last-10 in `<data-dir>/backups`. Manage-KB panel lists timestamped snapshots with one-click Restore (current state is auto-backed-up first so restores are undoable). *(done)*
@@ -195,8 +196,9 @@ menu-bot.raganyllm            (future: ZIP)
 - [x] **[P0 · M] Local-first security**: binds `127.0.0.1` (`HOST` env to open); same-origin API with an origin guard (403 for untrusted web pages; `cors` package removed); upload size/count limits (25 MB × 10 files, 200 MB pack, 25 MB JSON); LLM output sanitized via DOMPurify; delete-model verifies against `/api/tags` before deleting. *(done; ZIP packs additionally verify per-entry sha-256 + a fixed entry allowlist — see §5.1)*
 - [ ] **[P1 · M] Optional LAN mode with PIN** — if the user enables "allow other devices", require a PIN shown in the app (covers 5.4's share without opening the whole API).
 - [x] **[P1 · M] Tests** — `npm test` (`node --test`): unit (chunker, dedupe, load-heal, threshold gating, doc removal, BM25/hybrid recovery, config clamping + partial-update preservation) and integration against an in-process fake Ollama (models, config round-trip, vector-vs-hybrid queries, JSON + RAG-off role ordering + history, SSE streaming, origin guard, model-delete verification, pack export→clear→import→dedupe, per-doc delete, plain exports, samples, analyze-fit + build warning, ZIP-container codec (checksums/tamper/legacy), LAN-share round trip + expiry + single-use). 62 tests passing. *(E2E browser flows still open)*
-- [x] **[P1 · S] `engines` field** (`>=18`). *(CI GitHub Actions + LICENSE file still open)*
-- [ ] **[P1 · S] Logging & crash-proofing**: structured local logs (`~/.raganyllm/logs`), the UI stays alive if Ollama dies mid-chat ("Reconnect" banner).
+- [x] **[P1 · S] `engines` field** (`>=18`). *(done)*
+- [x] **[P1 · S] CI + LICENSE** — `.github/workflows/ci.yml` runs `npm ci && npm test` on Node 18/20/22 for every push/PR; MIT `LICENSE` added. *(E2E browser flows still open — see §7)*
+- [ ] **[P1 · S] Logging & crash-proofing**: JSONL structured logs in `<data-dir>/logs` (rotating ~1 MB keep-5, in-memory ring via `GET /api/logs`, best-effort never-throws) are in and key events (start, imports, shares, query errors) are recorded. *(done — the UI "Reconnect" banner when Ollama dies mid-chat still ships with the §1/§7 UI pass)*
 - [ ] **[P2 · M] Optional local telemetry** (opt-in, aggregate, never leaves device by default) so you can see which features noobs actually use.
 
 ---
