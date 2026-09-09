@@ -116,6 +116,7 @@ The current pipeline is: chunk (600 chars) → embed → top-k cosine → stuff 
 Today `POST /api/export-ollama-model` just bakes the whole KB into a giant system prompt — fine for tiny KBs, breaks past a few hundred KB, and is buried in the sidebar. Turn it into a guided, delightful flow:
 
 ### 4.1 Model Forge wizard (P0 · L)
+- [x] **Builder card v1** — name your AI (validated), optional custom rules/instructions textarea, live fit-status line (auto-refreshes on model/rules/KB changes), honest pre-build warning, richer success message with the `ollama run <name>` command, empty-KB guard, model-name sanitization+validation, KB stats in the completion message. *(done — full step-by-step modal wizard still open)*
 1. **Pick a brain** — base model cards with plain-language strength descriptions + size ("fastest", "best quality", "good balance"), searchable, `ollama pull` offered inline for anything not installed.
 2. **Name & face it** — name, tagline, avatar/emoji; the name becomes `ollama run <name>`.
 3. **Teach it** — choose the knowledge source (entire KB or pick documents), add "Rules it must follow" (system-prompt builder with templates: Support Agent, Study Buddy, Code Mentor, Chef, …).
@@ -123,6 +124,7 @@ Today `POST /api/export-ollama-model` just bakes the whole KB into a giant syste
 5. **Build & share** — progress stream (reuse existing NDJSON), then success screen: "✨ Your AI `menu-bot` is ready!" with a terminal command to copy, a QR code, and **Export this AI** (see §5).
 
 ### 4.2 Smart standalone-model construction (P0 · M)
+- [x] **Fit analysis (v1)** — the builder warns *before and during* the build when the KB won't fit the base model's context window: live `POST /api/kb/analyze-fit` verdict shown in the sidebar card ("✅ fits / ⚠️ too large / context unknown"), plus an in-stream warning during the build itself. *(done — remaining: automatic compact/split/RAG-pack modes)*
 - Fix the "entire KB in the system prompt" approach:
   - **Fit analysis**: warn/block when KB exceeds model context; offer automatic modes:
     - *Compact mode* — auto-distill the KB into a condensed knowledge brief that fits the context window;

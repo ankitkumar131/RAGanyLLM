@@ -544,11 +544,14 @@
         <div style="font-size:0.73rem; color:var(--text-muted); line-height:1.3">
           Builds a standalone model inside Ollama (e.g. <code>test-ai:new</code> or <code>angular29-lfm:latest</code>) with RAG knowledge embedded!
         </div>
-        <div style="display:flex; flex-direction:column; gap:0.4rem">
-          <input type="text" id="export-model-name" placeholder="New Model Name (e.g. test-ai:new)">
+        <div style="display:flex; flex-direction:column; gap:0.45rem">
+          <input type="text" id="export-model-name" placeholder="Name your AI (e.g. menu-bot or support-ai:new)" autocomplete="off">
+          <textarea id="export-instructions" rows="2" maxlength="4000" placeholder="Optional rules for your AI — e.g. 'Always answer in simple words. Never invent prices or facts.'" style="width:100%; resize:vertical; min-height:52px; padding:0.45rem 0.6rem; font-size:0.8rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:8px"></textarea>
+          <div id="fit-status" style="font-size:0.74rem; line-height:1.35; min-height:16px"></div>
           <button id="btn-export-model" class="btn-gradient" onclick="exportOllamaModel()">
-            🚀 Build & Create Ollama Model
+            🤖 Build & Create My AI
           </button>
+          <div id="export-warning" style="display:none; font-size:0.75rem; color:#fbbf24; background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.25); border-radius:8px; padding:0.45rem 0.6rem; line-height:1.4"></div>
         </div>
 
         <!-- Progress Loader for Standalone Model Creation -->
@@ -799,6 +802,7 @@
         }
 
         renderModalModelsList();
+        refreshFitAnalysis();
       } catch (e) {
         console.error("Error loading status:", e);
       }
@@ -989,7 +993,17 @@
 
     document.getElementById('model-select').addEventListener('change', (e) => {
       document.getElementById('active-model-display').innerText = e.target.value;
+      lastFitKey = '';
+      refreshFitAnalysis();
     });
+
+    const exportInstructionsEl = document.getElementById('export-instructions');
+    if (exportInstructionsEl) {
+      exportInstructionsEl.addEventListener('input', () => {
+        clearTimeout(fitTimer);
+        fitTimer = setTimeout(() => { lastFitKey = ''; refreshFitAnalysis(); }, 600);
+      });
+    }
 
     function switchTab(tabId) {
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -998,7 +1012,7 @@
       document.getElementById(tabId).classList.add('active');
     }
 
-    async function executeIngestStream(endpoint, fetchOptions, progressContainerId, percentId, barId, statusId, buttonEl) {
+    async function executeIngestStream(endpoint, fetchOptions, progressContainerId, percentId, barId, statusId, buttonEl, onWarning) {
       const progressContainer = document.getElementById(progressContainerId);
       const percentEl = document.getElementById(percentId);
       const barEl = document.getElementById(barId);
@@ -1049,6 +1063,8 @@
                 barEl.style.width = '100%';
                 statusEl.innerText = data.message || 'Complete!';
                 await loadModelsAndStatus();
+              } else if (data.status === 'warning') {
+                if (typeof onWarning === 'function') onWarning(data.detail || '');
               } else if (data.status === 'error') {
                 hasError = true;
                 throw new Error(data.detail || 'Execution error');
@@ -1140,6 +1156,52 @@
       contentInput.value = '';
     }
 
+    let lastFitKey = '';
+    let fitTimer = null;
+
+    // Live "will my knowledge fit this model?" analysis for the AI builder.
+    async function refreshFitAnalysis() {
+      const fitEl = document.getElementById('fit-status');
+      if (!fitEl) return;
+      const baseModel = document.getElementById('model-select').value || '';
+      const instructions = document.getElementById('export-instructions').value || '';
+      const kbChunks = (lastStatusData && lastStatusData.knowledge_base) ? lastStatusData.knowledge_base.total_chunks : 0;
+
+      if (!baseModel) {
+        fitEl.innerHTML = '';
+        lastFitKey = '';
+        return;
+      }
+      const key = baseModel + '|' + instructions + '|' + kbChunks;
+      if (key === lastFitKey) return; // nothing changed — skip redundant network call
+      lastFitKey = key;
+      fitEl.innerHTML = `<span style="color:var(--text-muted)">Checking if your knowledge fits ${escapeHtml(baseModel)}...</span>`;
+      try {
+        const res = await fetch('/api/kb/analyze-fit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base_model: baseModel, custom_instructions: instructions })
+        });
+        const d = await res.json();
+        if (!res.ok || d.detail) {
+          fitEl.innerHTML = `<span style="color:#f87171">⚠️ ${escapeHtml(d.detail || 'Fit check failed')}</span>`;
+          return;
+        }
+        const kbLabel = d.chunk_count === 0
+          ? 'Knowledge base is empty — add documents first'
+          : `${d.chunk_count} chunk(s) (≈${d.estimated_tokens} tokens)`;
+        if (d.verdict === 'fits') {
+          fitEl.innerHTML = `<span style="color:#34d399">✅ ${escapeHtml(kbLabel)} fits in ${escapeHtml(baseModel)} (≈${d.usable_tokens} tokens)</span>`;
+        } else if (d.verdict === 'too_large') {
+          fitEl.innerHTML = `<span style="color:#fbbf24">⚠️ ${escapeHtml(kbLabel)} is larger than ${escapeHtml(baseModel)} can remember (≈${d.usable_tokens} tokens). Your AI may only recall part of it — pick a bigger model or trim documents.</span>`;
+        } else {
+          fitEl.innerHTML = `<span style="color:#9ca3af">${escapeHtml(kbLabel)} · model context unknown — Ollama needs to be running to check fit</span>`;
+        }
+      } catch (e) {
+        fitEl.innerHTML = `<span style="color:#f87171">⚠️ Could not check fit: ${escapeHtml(e.message)}</span>`;
+      }
+    }
+
     async function exportOllamaModel() {
       const baseModelSelect = document.getElementById('model-select');
       const baseModel = baseModelSelect ? baseModelSelect.value : '';
@@ -1151,10 +1213,16 @@
       const nameInput = document.getElementById('export-model-name');
       const newModelName = nameInput.value.trim();
       if (!newModelName) {
-        return alert("⚠️ Please enter a new model name (e.g. test-ai:new or angular29-lfm:latest).");
+        return alert("⚠️ Please enter a name for your AI model (e.g. menu-bot or test-ai:new).");
+      }
+      if (!/^[a-z0-9_.:-]+$/i.test(newModelName)) {
+        return alert("⚠️ Model names can only contain letters, numbers, dots, dashes, underscores and a colon for the tag (e.g. menu-bot:latest).");
       }
 
+      const instructions = document.getElementById('export-instructions').value.trim();
       const btn = document.getElementById('btn-export-model');
+      const warnEl = document.getElementById('export-warning');
+      if (warnEl) { warnEl.style.display = 'none'; warnEl.textContent = ''; }
 
       await executeIngestStream(
         '/api/export-ollama-model',
@@ -1163,14 +1231,18 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             base_model: baseModel,
-            new_model_name: newModelName
+            new_model_name: newModelName,
+            custom_instructions: instructions
           })
         },
         'progress-export', 'percent-export', 'bar-export', 'status-export',
-        btn
+        btn,
+        (msg) => { if (warnEl) { warnEl.style.display = 'block'; warnEl.innerHTML = msg; } }
       );
 
       nameInput.value = '';
+      lastFitKey = ''; // KB unchanged, but force a fresh check next time
+      setTimeout(refreshFitAnalysis, 600);
     }
 
     async function clearKB() {
