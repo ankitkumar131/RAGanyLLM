@@ -1291,6 +1291,10 @@
         html += `<div style="margin-top:0.5rem; font-size:0.78rem; color:#f87171; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:8px; padding:0.5rem 0.7rem">⚠️ Your knowledge base could not be searched (embedding error). This answer may not use your documents.</div>`;
       }
 
+      if (meta && meta.context_budget && meta.context_budget.dropped_sources > 0) {
+        html += `<div style="margin-top:0.5rem; font-size:0.75rem; color:#fbbf24; background:rgba(251,191,36,0.07); border-radius:6px; padding:0.3rem 0.55rem">✂️ ${meta.context_budget.dropped_sources} lower-ranked source(s) were trimmed to fit this model's context window${meta.context_budget.model_context_tokens ? ` (${meta.context_budget.model_context_tokens} tokens)` : ''}.</div>`;
+      }
+
       if (statusNote) {
         html += `<div style="margin-top:0.5rem; font-size:0.75rem; color:var(--text-muted); font-style:italic">${statusNote}</div>`;
       }
