@@ -607,6 +607,21 @@
           <div id="status-pack" class="progress-status">Reading pack file...</div>
         </div>
 
+        <div id="samples-row" style="display:none; margin-top:0.55rem; padding:0.55rem 0.6rem; border:1px dashed var(--border-color); border-radius:10px; background:rgba(139,92,246,0.05)">
+          <div style="font-size:0.8rem; line-height:1.4; color:#d1d5db">👋 <strong>New here?</strong> Load 3 short sample documents and try a real question right away — no files needed.</div>
+          <button id="btn-sample-docs" class="btn-secondary" style="width:100%; margin-top:0.45rem; font-size:0.8rem; padding:0.45rem" onclick="loadSampleDocs()">✨ Load Sample Documents</button>
+          <div id="progress-samples" class="progress-container" style="margin-top:0.4rem">
+            <div class="progress-header">
+              <span class="progress-title">Loading sample documents...</span>
+              <span id="percent-samples" class="progress-percent">0%</span>
+            </div>
+            <div class="progress-track">
+              <div id="bar-samples" class="progress-fill"></div>
+            </div>
+            <div id="status-samples" class="progress-status">Teaching the AI...</div>
+          </div>
+        </div>
+
         <ul id="kb-list" class="kb-list">
           <li class="kb-item" style="color:var(--text-muted)">No documents loaded yet.</li>
         </ul>
@@ -777,6 +792,8 @@
         const docList = (data.knowledge_base.documents && data.knowledge_base.documents.length > 0)
           ? data.knowledge_base.documents
           : (data.knowledge_base.document_titles || []).map(t => ({ title: t, chunk_count: 0 }));
+        const samplesRow = document.getElementById('samples-row');
+        if (samplesRow) samplesRow.style.display = (docList.length === 0) ? 'block' : 'none';
         if (docList.length === 0) {
           kbList.innerHTML = `<li class="kb-item" style="color:var(--text-muted)">No documents in Knowledge Base.</li>`;
         } else {
@@ -1420,6 +1437,16 @@
       } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = original; }
       }
+    }
+
+    async function loadSampleDocs() {
+      const btn = document.getElementById('btn-sample-docs');
+      await executeIngestStream(
+        '/api/kb/samples',
+        { method: 'POST' },
+        'progress-samples', 'percent-samples', 'bar-samples', 'status-samples',
+        btn
+      );
     }
 
     function clearChat() {

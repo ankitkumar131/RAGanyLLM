@@ -29,7 +29,7 @@ These are concrete bugs in the current code that *must* be fixed before layering
 - [x] **[P0 · S] Sanitize LLM output before rendering** — `marked.parse(...)` output now passes through DOMPurify before `innerHTML`; `escapeHtml` also escapes single quotes; model-delete buttons no longer interpolate names into inline `onclick`. *(done)*
 - [x] **[P0 · S] Kill the open-door API** — server binds `127.0.0.1` by default (`HOST` env to open up), cross-origin requests from untrusted pages are rejected 403 (origin guard replacing blanket CORS), multer caps at 25 MB × 10 files, JSON cap 25 MB, and `DELETE /api/models/:model` only deletes models Ollama actually reports installed. *(done)*
 - [x] **[P0 · S] Deduplicate ingestion** — chunks are keyed by `sha256(source|chunk_index|content)`; re-ingesting identical content is skipped (responses report `added`/`skipped`), and old duplicate rows are healed on load. *(done)*
-- [x] **[P0 · S] Don't ship fake seed data as the default KB** — `raganyllm-kb.json`/`raganyllm-config.json` removed from the repo and gitignored; KB starts empty in the user data dir. *(done; "Load sample docs" button still open in §1)*
+- [x] **[P0 · S] Don't ship fake seed data as the default KB** — `raganyllm-kb.json`/`raganyllm-config.json` removed from the repo and gitignored; KB starts empty in the user data dir. An optional, factual **"✨ Load Sample Documents"** on-ramp (3 short starter docs about RAG / Ollama / Angular 20) appears in the UI only while the KB is empty — one click, dedupe-safe, with progress. *(done — GET+POST /api/kb/samples + UI)*
 
 ---
 
