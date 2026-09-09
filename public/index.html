@@ -585,10 +585,35 @@
         <!-- Portable Knowledge Pack: Export / Import (cross-device) -->
         <div style="display:flex; gap:0.4rem; margin-top:0.5rem">
           <button id="btn-export-kb" class="btn-secondary" style="flex:1; padding:0.4rem 0.3rem; font-size:0.78rem" onclick="exportKb()" title="Save your knowledge base as a portable .raganyllm file you can import on another device">⬆ Export KB</button>
+          <button id="btn-share-kb" class="btn-secondary" style="flex:1; padding:0.4rem 0.3rem; font-size:0.78rem" onclick="shareKb()" title="Make a single-use link (with QR code) that another device on this network can use to pull this knowledge base straight into its own raganyllm — auto-expires, no file needed">🔗 Share KB</button>
           <button id="btn-import-kb" class="btn-secondary" style="flex:1; padding:0.4rem 0.3rem; font-size:0.78rem" onclick="document.getElementById('kb-pack-file').click()" title="Import a .raganyllm knowledge pack from another device">⬇ Import KB</button>
         </div>
-        <div style="margin-top:0.35rem">
-          <button id="btn-export-ai" class="sources-btn" style="width:100%; font-size:0.7rem; padding:0.3rem 0.4rem" onclick="exportKb('ai')" title="Download one .raganyllm file with your knowledge base AND your custom AIs (name, base model, rules) — import it on any device to restore both">🤖 Export AI Pack — knowledge + your custom AIs</button>
+        <div style="display:flex; gap:0.4rem; margin-top:0.35rem">
+          <button id="btn-export-ai" class="sources-btn" style="flex:1; font-size:0.7rem; padding:0.3rem 0.4rem" onclick="exportKb('ai')" title="Download one .raganyllm file with your knowledge base AND your custom AIs (name, base model, rules) — import it on any device to restore both">🤖 Export AI Pack — knowledge + your custom AIs</button>
+          <button id="btn-share-ai" class="sources-btn" style="font-size:0.7rem; padding:0.3rem 0.55rem" onclick="shareKb('ai')" title="Single-use link (with QR code) for the AI pack — knowledge base + custom AIs">🔗 Share AI Pack</button>
+        </div>
+        <!-- LAN share result: single-use link + QR code (ROADMAP §5.4) -->
+        <div id="share-panel" style="display:none; margin-top:0.45rem; padding:0.55rem 0.65rem; border:1px solid rgba(56,189,248,0.35); border-radius:10px; background:rgba(56,189,248,0.05); font-size:0.73rem; line-height:1.5">
+          <div style="display:flex; align-items:center; gap:0.4rem">
+            <b style="color:#7dd3fc; flex:1" id="share-title">🔗 Share link ready</b>
+            <span id="share-note" style="color:var(--text-muted)"></span>
+          </div>
+          <div id="share-warning" style="display:none; margin-top:0.35rem; padding:0.35rem 0.5rem; border:1px solid rgba(251,191,36,0.4); border-radius:8px; background:rgba(251,191,36,0.07); color:#fcd34d"></div>
+          <div style="display:flex; gap:0.55rem; margin-top:0.45rem">
+            <div style="text-align:center; flex-shrink:0">
+              <img id="share-qr" alt="QR code" style="width:112px; height:112px; border-radius:8px; display:none">
+              <div style="font-size:0.6rem; color:var(--text-muted)">scan on the other device</div>
+            </div>
+            <div style="flex:1; min-width:0">
+              <div style="color:var(--text-muted)">This link works <b>once</b>, then expires. Any raganyllm on this network can import from it:</div>
+              <input type="text" id="share-url" readonly onclick="this.select()" style="width:100%; margin-top:0.3rem; font-size:0.72rem; padding:0.35rem 0.5rem; background:rgba(15,23,42,0.8); color:#7dd3fc; border:1px solid var(--border-color); border-radius:6px">
+              <div style="display:flex; gap:0.4rem; margin-top:0.35rem">
+                <button class="sources-btn" id="share-copy" style="font-size:0.7rem; padding:0.2rem 0.5rem" onclick="copyShareUrl()">📋 Copy</button>
+                <button class="sources-btn" style="font-size:0.7rem; padding:0.2rem 0.5rem" onclick="shareClose()">✖ Close</button>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:0.4rem; color:var(--text-muted)">Receiving device: open the link in its browser (or in its KB panel use <b>Import from link</b> below and paste this address).</div>
         </div>
         <div style="display:flex; align-items:center; gap:0.4rem; margin-top:0.35rem">
           <select id="import-mode-select" style="flex:1; font-size:0.72rem; padding:0.25rem 0.35rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px" title="How to add imported knowledge to this device">
@@ -605,6 +630,11 @@
         <div style="display:flex; gap:0.4rem; margin-top:0.35rem">
           <input type="password" id="export-password" placeholder="🔒 Password-protect export (optional)" autocomplete="new-password" style="flex:1; min-width:0; font-size:0.72rem; padding:0.3rem 0.45rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px">
           <input type="password" id="import-password" placeholder="Pack password, if protected" autocomplete="new-password" style="flex:1; min-width:0; font-size:0.72rem; padding:0.3rem 0.45rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px" onkeyup="if(pendingPackFile) previewKbPack()">
+        </div>
+        <div style="display:flex; gap:0.4rem; margin-top:0.45rem; align-items:center">
+          <span style="font-size:0.7rem; color:#7dd3fc; white-space:nowrap" title="Pull a knowledge base straight from another raganyllm on this network using its single-use share link (ROADMAP §5.4)">Import from link</span>
+          <input type="text" id="import-link-input" placeholder="Paste the other device's share link — http://192.168.x.x:8000/packs/share/…" autocomplete="off" style="flex:1; min-width:0; font-size:0.7rem; padding:0.3rem 0.45rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px" onkeydown="if(event.key==='Enter')importFromLink()">
+          <button id="btn-import-link" class="sources-btn" style="font-size:0.7rem; padding:0.25rem 0.6rem" onclick="importFromLink()" title="Fetch the pack over the network and import it into THIS device (merge/replace + password above apply)">Fetch &amp; import</button>
         </div>
         <!-- Preview card shown before a pack is imported (ROADMAP §5.2) -->
         <div id="pack-preview" style="display:none; margin-top:0.45rem; padding:0.55rem 0.65rem; border:1px solid var(--border-color); border-radius:10px; background:rgba(139,92,246,0.06); font-size:0.73rem; line-height:1.55">
@@ -1464,6 +1494,98 @@
         alert(`Export failed: ${e.message}`);
       } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = original; }
+      }
+    }
+
+    // ---- LAN share (ROADMAP §5.4): single-use links + QR -------------------
+    async function shareKb(kind) {
+      const panel = document.getElementById('share-panel');
+      const titleEl = document.getElementById('share-title');
+      const note = document.getElementById('share-note');
+      const warn = document.getElementById('share-warning');
+      const qr = document.getElementById('share-qr');
+      const urlInput = document.getElementById('share-url');
+      const isAi = kind === 'ai';
+      panel.style.display = 'block';
+      titleEl.innerHTML = isAi ? '🤖 AI Pack share link ready' : '🔗 Share link ready';
+      note.textContent = 'Creating…';
+      warn.style.display = 'none';
+      qr.style.display = 'none';
+      qr.removeAttribute('src');
+      urlInput.value = '';
+      const pwdInput = document.getElementById('export-password');
+      const password = pwdInput ? pwdInput.value : '';
+      try {
+        const res = await fetch('/api/kb/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind: isAi ? 'ai' : 'knowledge', password, base_url: location.origin })
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || !d.ok) { note.textContent = '⚠️ ' + (d.detail || ('HTTP ' + res.status)); return; }
+        note.textContent = `single-use · expires in ~${d.ttl_minutes || 1} min`;
+        urlInput.value = d.url;
+        if (d.qr_svg) {
+          qr.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(d.qr_svg);
+          qr.style.display = 'inline-block';
+        }
+        if (d.warning) { warn.style.display = 'block'; warn.textContent = '⚠️ ' + d.warning; }
+        urlInput.focus(); urlInput.select();
+      } catch (e) {
+        note.textContent = '⚠️ ' + e.message;
+      }
+    }
+
+    function shareClose() {
+      const panel = document.getElementById('share-panel');
+      if (panel) panel.style.display = 'none';
+    }
+
+    async function copyShareUrl() {
+      const input = document.getElementById('share-url');
+      const btn = document.getElementById('share-copy');
+      const original = btn ? btn.innerHTML : '';
+      if (btn) btn.innerHTML = '✔ Copied';
+      const done = () => setTimeout(() => { if (btn) btn.innerHTML = original; }, 1500);
+      try {
+        await navigator.clipboard.writeText(input.value);
+        done();
+      } catch (e) {
+        input.focus(); input.select();
+        try { document.execCommand('copy'); } catch (e2) { /* ignore */ }
+        done();
+      }
+    }
+
+    // Pull a pack from another device's single-use share link and import it
+    // into THIS device (merge/replace mode + password from the import fields).
+    async function importFromLink() {
+      const input = document.getElementById('import-link-input');
+      const url = (input.value || '').trim();
+      if (!url) return alert('Paste the share link from the other device first (e.g. http://192.168.1.5:8000/packs/share/…).');
+      const mode = document.getElementById('import-mode-select').value;
+      if (mode === 'replace') {
+        const ok = confirm('REPLACE mode: this will DELETE your current knowledge base on this device and replace it with the contents of the shared pack. A backup is kept first so you can restore.\n\nContinue?');
+        if (!ok) return;
+      }
+      const pwdInput = document.getElementById('import-password');
+      const password = pwdInput ? pwdInput.value : '';
+      const btn = document.getElementById('btn-import-link');
+      const result = await executeIngestStream(
+        '/api/kb/import-link',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, mode, password })
+        },
+        'progress-pack', 'percent-pack', 'bar-pack', 'status-pack',
+        btn
+      );
+      input.value = '';
+      loadBackups();
+      loadMyAis();
+      if (result && Array.isArray(result.missing_models) && result.missing_models.length > 0) {
+        showMissingWizard(result.missing_models);
       }
     }
 
