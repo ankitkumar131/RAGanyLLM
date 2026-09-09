@@ -173,12 +173,8 @@ menu-bot.raganyllm            (future: ZIP)
 - [ ] **Post-import wizard**: if the embedding model or base model is missing on this device → "This pack needs a small helper — download now?" with progress. Then: "🎉 Imported! Try asking: …".
 
 ### 5.3 CLI parity (P1 · S)
-```
-raganyllm export ./backup.raganyllm [--with-embeddings] [--password ...]
-raganyllm import ./backup.raganyllm [--mode merge|replace] [--password ...]
-raganyllm list packs
-```
-Same bundle format, so a CLI-exported pack imports in the GUI and vice-versa.
+- [x] **`raganyllm export` / `import` subcommands** — `bin/cli.js` dispatches on the first arg: `export [FILE] [--password …] [--no-embeddings]` (FILE defaults to `raganyllm-kb-YYYY-MM-DD.raganyllm`; default embeds-included, matching the GUI; `--no-embeddings` = compact) and `import FILE [--mode merge|replace] [--password …]` (replace auto-backs-up first; merge dedupes by content hash; embedding-less packs re-learn through Ollama, all-or-nothing on failure). `raganyllm` with no args still runs the interactive setup + server.
+- [x] **Single pack codec** — `lib/pack.js` (encode/decode/normalize incl. AES-GCM encryption + scrypt) is now shared by the HTTP routes and the CLI, so packs are interchangeable both ways. *(`list packs` helper still open; `--with-embeddings` accepted as an alias of the default)*
 
 ### 5.4 Device-to-device transfer (P1 · M)
 - **LAN share**: "Send to another computer on this Wi-Fi" → shows `http://<ip>:8000/packs/share/<token>` + QR code; the other device opens it in the browser and clicks Import. Auto-expiring, single-use token, no external service.
