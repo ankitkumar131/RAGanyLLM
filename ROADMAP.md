@@ -1,0 +1,241 @@
+# 🧭 RAGanyLLM — RAG Improvements & Feature Roadmap
+
+> Written from a **RAG expert's** perspective. Every item is grounded in the current codebase
+> (`lib/server.js`, `lib/vector-store.js`, `public/index.html`) and aimed at three product goals:
+>
+> 1. **🧒 Noob-proof by default** — a person with *zero* RAG/AI/terminal knowledge can do RAG and create their own AI.
+> 2. **🧠 Real RAG quality** — retrieval that actually retrieves the right context, with measurable accuracy.
+> 3. **📦 Portable knowledge** — export the knowledge base / custom AI from this device and import it on another device in a few clicks.
+
+---
+
+## Priority legend
+
+| Tag | Meaning |
+|---|---|
+| **P0** | Must-have for the "noob can do it" v1.1 promise |
+| **P1** | Next release — big quality/UX win |
+| **P2** | Later — scale, polish, platform |
+| Effort | S (≤1 day) · M (≤1 week) · L (1–4 weeks) · XL (1–3 months) |
+
+---
+
+## 0. Foundation fixes first (RAG quality is impossible on a broken base)
+
+These are concrete bugs in the current code that *must* be fixed before layering features on top.
+
+- [ ] **[P0 · S] Fix the similarity threshold** — `lib/server.js:515` / `lib/vector-store.js:77` pass `0.15`, which effectively admits *everything* (normalized 768-dim embeddings almost always exceed 0.15). Expose it, default ~`0.4`, and surface it in the UI.
+- [ ] **[P0 · S] Store KB & config in a user-owned location** — currently `path.resolve(process.cwd(), …)` (`config.js:4`, `vector-store.js:6`) means a global install run from a read-only folder cannot save, and two app instances in one folder corrupt each other's writes. Move to `~/.raganyllm/` (overridable via `RAGANYLLM_HOME`), keep the local file as a dev fallback.
+- [ ] **[P0 · S] Sanitize LLM output before rendering** — `marked.parse(data.answer)` is inserted via `innerHTML` (`index.html:1068`); an LLM that echoes HTML can XSS the UI. Render through DOMPurify or escape-then-parse.
+- [ ] **[P0 · S] Kill the open-door API** — bind to `127.0.0.1`, restrict `cors()` to local origins, add upload size limits, and don't expose model deletion to arbitrary pages (`DELETE /api/models/:model`).
+- [ ] **[P0 · S] Deduplicate ingestion** — hash `(source + chunk_index + content)`; re-uploading the same file must update/replace, not append (the committed seed KB already shows 3 identical duplicate chunks).
+- [ ] **[P0 · S] Don't ship fake seed data as the default KB** — remove the lorem-style "Test Progress Doc" / placeholder Angular chunks from `raganyllm-kb.json`, gitignore the file, and instead offer an optional "Load sample docs" button in the UI.
+
+---
+
+## 1. 🧒 Noob-Proof Experience — "a noob can do RAG"
+
+The promise: *open the app → answer 3 questions → RAG is working → make your own AI*. No terminal, no Ollama knowledge, no jargon.
+
+### 1.1 First-Run Wizard (P0 · M)
+A 4-step guided setup the first time the app runs (and re-runnable from Settings → "Setup Assistant"):
+1. **Check my computer** — health dashboard in plain language ("✓ AI engine found", "✗ AI engine not found — click to download & install it"). Auto-download/install Ollama if missing; auto-pull `nomic-embed-text` **and a recommended beginner chat model** (e.g. `llama3.2` or `qwen2.5`) with live progress.
+2. **What is my AI for?** — persona picker: "Document Q&A", "Website docs assistant", "My knowledge notes", "Custom". This pre-configures sensible chunking/retrieval/model defaults.
+3. **Give it your brain** — big friendly drop-zones for files/folders/URLs; the wizard auto-ingests and shows a live 0→100% progress with plain-language stage text ("Reading your PDF…", "Cutting it into pieces…", "Teaching the AI…").
+4. **Try it!** — auto-asks 3 questions generated from the ingested content so the user immediately *sees* it working; shows the retrieved sources.
+
+### 1.2 Plain-language everything (P0 · M)
+- Replace every technical status with human text + a "Why?" tooltip: "embedding" → "Teaching the AI to understand your words"; "vector store" → "Your AI's memory"; "chunking" → "Cutting documents into readable pieces".
+- First-class **Error Doctor**: every error gets an icon, a plain explanation, the fix, and a "Fix it for me" button (e.g. "Ollama is not running" → button "Start Ollama").
+- **Status traffic light** always visible: 🟢 Ready to chat / 🟡 Needs attention / 🔴 Setup required, with one-line reason.
+
+### 1.3 Modes (P0 · S)
+- **Simple mode (default)** — zero knobs: one dropdown "How much detail?" (Concise / Balanced / Detailed).
+- **Advanced mode** — reveals chunk size, overlap, top-k, threshold, prompt template, system prompt, etc.
+
+### 1.4 Guided "My AI" creator (P0 · L — centerpiece, see §4)
+
+### 1.5 Learning content (P1 · M)
+- In-app 90-second tutorial overlay + short video; "What is RAG?" explainer page (with a real diagram of their own data flow); FAQ.
+- Chat empty state: "💡 Ask your AI anything about the 3 documents you gave it" + suggestion chips generated from the KB.
+
+---
+
+## 2. 🧠 RAG Core Quality Engine
+
+The current pipeline is: chunk (600 chars) → embed → top-k cosine → stuff into prompt. That is *minimal viable RAG*. A serious upgrade path:
+
+### 2.1 Smart chunking (P1 · M)
+- Token-aware chunker (respect each model's context), not raw characters.
+- Structure-aware splitting for Markdown (headers → sections), code blocks kept intact, list/table boundaries preferred.
+- Heading/citation metadata attached to every chunk (chunk → "Section 2.3 · page 12 · file X") for better citations and display.
+- Re-chunk on config change with a **"Re-process my knowledge base"** button (store source docs separately from chunks so re-chunking never needs re-upload).
+
+### 2.2 Retrieval quality (P0/P1)
+- [ ] **[P1 · M] Hybrid search** — vector + BM25/keyword (SQLite FTS5 or in-memory inverted index), fused with Reciprocal Rank Fusion (RRF). Catches exact names, code identifiers, and version numbers that pure vector search misses.
+- [ ] **[P1 · M] Reranking** — add a second-pass reranker over the top ~20 candidates before final top-k. Options: a small local cross-encoder (via transformers.js or an Ollama rerank model) or LLM-based rerank ("which of these is most relevant?").
+- [ ] **[P1 · M] Query rewriting / expansion** — expand the user's question with 2–3 paraphrases or decompose multi-part questions ("What is X and how do I install it?" → 2 searches).
+- [ ] **[P0 · S] Honest "I don't know"** — if best score < threshold → the assistant must say *"I couldn't find this in your knowledge base"* instead of hallucinating; add a "Not in your KB — ask me to add it?" action.
+- [ ] **[P0 · S] Metadata filters** — filter by doc/source/tag/date before search; per-source weights ("prioritize files over scraped URLs").
+- [ ] **[P2 · M] HyDE** — generate a hypothetical answer, embed *that*, search with it. Strong recall boost for short queries.
+
+### 2.3 Context window management (P0 · M)
+- Detect each model's context length via `ollama show`; compute a token budget for context vs. answer.
+- Truncate/prioritize retrieved chunks to fit the budget (trim middle chunks, not the most relevant ones).
+- Prompt templates per model family (Llama, Qwen, Gemma, DeepSeek…) since instruction-following formats differ.
+
+### 2.4 Conversational RAG (P1 · M)
+- **Multi-turn memory**: chat history + follow-up rewriting ("and what about its price?" → rewritten with the prior topic).
+- Optional **memory window slider** (last N messages); show token usage per turn.
+- **Streaming responses** (SSE token-by-token) with a Stop button — non-negotiable for perceived speed of local models.
+- Sources always clickable/expandable; answer sentences mapped to source chunks where possible (grounded-citation view).
+
+### 2.5 RAG evaluation harness (P1 · L — what separates demos from products)
+- Built-in **"Test my knowledge base"** wizard: user pastes 10–20 Q&A pairs (or imports from CSV/JSONL), the app measures **hit-rate, MRR, answer-accuracy, hallucination rate** and shows which questions *fail* and why (retrieval miss vs. generation error).
+- Suggested experiment A/B: current settings vs. hybrid search vs. reranking — show the scoreboard.
+- Ingestion quality report: empty/low-content chunks, near-duplicates, OCR-garbage detection, language mix.
+
+### 2.6 Ingestion breadth (P1 · L)
+- Formats: `.docx`, `.pptx`, `.xlsx`, `.csv`, `.epub`, `.html` file, images-with-OCR (vision model or tesseract), and whole-**folder/zip** upload.
+- URL: real scraper (readability extraction, strip nav/ads), optional recursion depth + sitemap import, scheduled re-scrape ("keep this URL fresh daily").
+- Connectors (P2): Google Drive, Notion, Confluence, Obsidian vault, GitHub repo, YouTube transcript.
+
+---
+
+## 3. 🗄️ Storage & Vector Database (scale without pain)
+
+- [ ] **[P1 · L] Abstract `VectorStore` behind an interface** and ship two adapters:
+  - `json` (current) — kept only as a dev/demo fallback;
+  - `sqlite` — SQLite + FTS5 for BM25 hybrid search + a vector column/index (via `sqlite-vec` or a sidecar HNSW file). No server process, still one-file portable, crash-safe with WAL.
+- [ ] **[P1 · M] Store original documents** (sources) alongside chunks → enables re-chunking, source listing, export, and "update this doc" without re-upload.
+- [ ] **[P1 · M] Incremental & atomic persistence** — append/transactional writes instead of rewriting the whole KB JSON on every batch; no lost updates between two tabs.
+- [ ] **[P2 · M] Optional memory cap** — chunk/embedding budget per KB with compaction (merge tiny chunks, drop near-dup vectors).
+
+---
+
+## 4. 🤖 "Create Your Own AI" — the beginner product moment
+
+Today `POST /api/export-ollama-model` just bakes the whole KB into a giant system prompt — fine for tiny KBs, breaks past a few hundred KB, and is buried in the sidebar. Turn it into a guided, delightful flow:
+
+### 4.1 Model Forge wizard (P0 · L)
+1. **Pick a brain** — base model cards with plain-language strength descriptions + size ("fastest", "best quality", "good balance"), searchable, `ollama pull` offered inline for anything not installed.
+2. **Name & face it** — name, tagline, avatar/emoji; the name becomes `ollama run <name>`.
+3. **Teach it** — choose the knowledge source (entire KB or pick documents), add "Rules it must follow" (system-prompt builder with templates: Support Agent, Study Buddy, Code Mentor, Chef, …).
+4. **Preview** — live chat-test with the *actual* settings before building; show projected size and whether the KB fits the context window.
+5. **Build & share** — progress stream (reuse existing NDJSON), then success screen: "✨ Your AI `menu-bot` is ready!" with a terminal command to copy, a QR code, and **Export this AI** (see §5).
+
+### 4.2 Smart standalone-model construction (P0 · M)
+- Fix the "entire KB in the system prompt" approach:
+  - **Fit analysis**: warn/block when KB exceeds model context; offer automatic modes:
+    - *Compact mode* — auto-distill the KB into a condensed knowledge brief that fits the context window;
+    - *Split mode* — build N focused models ("menu-bot-part1/2");
+    - *RAG-pack mode* (recommended) — create a *paired* deliverable: base model + bundled vector KB that the app can rehydrate on any device (see §5), giving the "standalone" feel without stuffing.
+- Save a **history of created models** (name, base, date, sources used, custom rules) with re-build and delete.
+
+### 4.3 Model manager (P1 · M)
+- Settings → show installed models with real sizes from disk, safe delete with confirmation + undo grace, pull progress, and **import/export model cards**.
+
+---
+
+## 5. 📦 Knowledge Export / Import & Cross-Device Portability — *your explicit ask*
+
+**Goal: "Take my AI's brain from this laptop to my friend's PC / my work machine in under a minute, no cables, no terminal."**
+
+### 5.1 The portable bundle format — `.raganyllm` pack (P0 · M)
+One file, versioned, self-describing, checksummed:
+
+```
+menu-bot.raganyllm            (it's a ZIP)
+├── manifest.json             # schema version, app version, created-at, counts, sha-256 of every entry
+├── knowledge/
+│   ├── documents.jsonl       # full original docs + metadata (title, source, URL, tags, ingested-at)
+│   └── chunks.jsonl          # chunk text, doc ref, chunk_index, heading path
+├── settings.json             # embedding model, default chat model, chunk params, threshold, top-k
+├── ai/
+│   ├── model-card.json       # any custom AIs built from this KB (name, base, rules, avatar)
+│   └── modelfiles/           # generated Modelfiles (text)
+└── embeddings/               # OPTIONAL (default off): keeps import instant but larger
+    └── vectors.npy           # row order == chunks.jsonl
+```
+
+- **Two export flavors** in the UI:
+  - **💾 Knowledge Pack** — documents + chunks + settings (embeddings optional). Small, human-readable, re-embeds on import.
+  - **🤖 AI Pack** — Knowledge Pack + the custom-AI cards/Modelfiles so the recipient gets your finished assistant, not just raw knowledge.
+- **Encrypt option** (password → AES-GCM): a noob's docs are often private — one checkbox, one password, done.
+
+### 5.2 One-click flows everywhere (P0 · S)
+- Header toolbar: **⬇ Import** and **⬆ Export** buttons.
+- **Export**: name the pack → choose contents (KB / KB+AI) → choose embeddings (small / big-but-instant) → password (optional) → save.
+- **Import**: drag & drop the `.raganyllm` file anywhere in the UI (or File → Open). The app **validates** (schema version, checksums, safe paths — no zip-slip), shows a preview card ("Contains: 3 documents · 412 chunks · 1 AI 'menu-bot'"), then asks: **Merge / Replace / Preview**. On merge: dedupe by content hash; on replace: warn first, keep an auto-backup.
+- **Post-import wizard**: if the embedding model or base model is missing on this device → "This pack needs a small helper — download now?" with progress. Then: "🎉 Imported! Try asking: …".
+
+### 5.3 CLI parity (P1 · S)
+```
+raganyllm export ./backup.raganyllm [--with-embeddings] [--password ...]
+raganyllm import ./backup.raganyllm [--mode merge|replace] [--password ...]
+raganyllm list packs
+```
+Same bundle format, so a CLI-exported pack imports in the GUI and vice-versa.
+
+### 5.4 Device-to-device transfer (P1 · M)
+- **LAN share**: "Send to another computer on this Wi-Fi" → shows `http://<ip>:8000/packs/share/<token>` + QR code; the other device opens it in the browser and clicks Import. Auto-expiring, single-use token, no external service.
+- **Export to cloud folder** (P2): watch a folder (Dropbox/Google Drive/iCloud/Obsidian) → auto-sync pack on change; import picks newest.
+
+### 5.5 Plain export formats (P1 · S)
+- Export KB as **Markdown/JSONL/CSV** for humans ("give me my notes back"), plus a pretty HTML report (per-document, chunk counts, coverage).
+
+### 5.6 Backup & restore (P1 · M)
+- **Auto-backups**: every N minutes or before destructive ops (clear KB, replace import, re-chunk), keep last K rotating snapshots in `~/.raganyllm/backups`; Settings → Restore with timestamp picker.
+- One-click "Back up to file" = export without thinking.
+
+---
+
+## 6. 🖥️ Reliability, Security & Operations
+
+- [ ] **[P0 · M] Local-first security**: bind `127.0.0.1`; same-origin API (no CORS package needed); upload size/count limits; sanitize all rendered content; validate import archives against path traversal; don't let the UI delete arbitrary Ollama models (confirm against `/api/tags`).
+- [ ] **[P1 · M] Optional LAN mode with PIN** — if the user enables "allow other devices", require a PIN shown in the app (covers 5.4's share without opening the whole API).
+- [ ] **[P1 · M] Tests**: unit — chunker boundaries, dedupe, threshold math, cosine/normalization, pack round-trip (export → import → same stats); integration — fake-Ollama server tests every endpoint incl. streaming progress; E2E — first-run wizard, import/merge.
+- [ ] **[P1 · S] `engines` field + CI** (GitHub Actions: lint + test on Node 18/20/22) + a real LICENSE file.
+- [ ] **[P1 · S] Logging & crash-proofing**: structured local logs (`~/.raganyllm/logs`), the UI stays alive if Ollama dies mid-chat ("Reconnect" banner).
+- [ ] **[P2 · M] Optional local telemetry** (opt-in, aggregate, never leaves device by default) so you can see which features noobs actually use.
+
+---
+
+## 7. 🎨 UI/UX upgrades (make it feel like a product, not a demo)
+
+- [ ] **[P0 · S] Chat quality**: streaming text, code blocks with copy + language highlight, LaTeX, tables, message actions (copy / regenerate / thumbs).
+- [ ] **[P1 · S] KB explorer**: list documents with chunk counts, preview/delete/update-per-doc, per-doc re-embed, tags.
+- [ ] **[P1 · S] Conversation sidebar**: multiple chats, rename, clear, export chat as Markdown.
+- [ ] **[P1 · S] Responsive + accessible**: keyboard nav, ARIA labels on the modal/accordions, focus traps, larger hit targets.
+- [ ] **[P2 · S] Theme + i18n**: dark/light/system; begin with EN/HI/etc. tooltip layer given the tool's audience.
+
+---
+
+## 8. 🧩 API & Platform surface (grow beyond the GUI)
+
+- [ ] **[P1 · M] Stable documented HTTP API** + OpenAPI spec; version prefix (`/api/v1`).
+- [ ] **[P1 · M] Richer CLI** — `raganyllm chat "ask…"`, `raganyllm ask --doc file.pdf`, `raganyllm serve --headless`.
+- [ ] **[P2 · M] Library mode** — `const { RAG } = require('raganyllm')` so developers embed the engine in their own apps (this is what turns a nice tool into a platform).
+
+---
+
+## 9. 📦 Recommended delivery milestones
+
+| Milestone | Scope | Outcome |
+|---|---|---|
+| **M1 — "Noob-safe v1.1"** (P0 fixes + §0) | threshold, storage home, sanitize XSS, bind localhost, dedupe, drop fake seed KB | Safe foundation |
+| **M2 — "Noob can do it"** | First-run wizard, plain-language pass, Error Doctor, modes, chat streaming + honest don't-know, KB pack export/import with wizard | The headline promise works: noob → RAG → own AI → moves it to another device |
+| **M3 — "RAG that works"** | hybrid search, reranking, smart chunking, token budgeting, multi-turn, Model Forge v1, fit-analysis | Measurable retrieval quality + real "create your AI" moment |
+| **M4 — "Product"** | SQLite vector store, eval harness, tests/CI, CLI parity, LAN share, backups, connectors | Production-ready for a real user base |
+
+---
+
+## 10. 🎬 The north-star story this roadmap enables
+
+> **Priya** (no tech background) downloads the app. The wizard checks her PC, installs what's missing, and asks what her AI is for. She says **"My restaurant's menu assistant"**, drags in 3 PDFs (menu, prices, allergy sheet) and pastes her website FAQ link. The app cuts them up, teaches itself, and immediately shows her sample questions. She chats with it — *"Which dishes are vegan?"* — sees the answer cite her own menu, clicks **"Create my AI"**, names it **`priya-menu-bot`**, picks a chef emoji avatar and rules ("never invent prices"), tests it in the preview, and builds it.
+>
+> At home that evening she clicks **Export**, saves `priya-menu-bot.raganyllm`, and sends it to her business partner. On their laptop, one drag-and-drop → validation → "this pack needs a small helper, download now?" → done. Same AI, same knowledge, same answers — no terminal, no config, no tutorials required.
+
+---
+
+*Generated as a living document — check items off as they ship, and treat §0 as the gate for everything else.*
