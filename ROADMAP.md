@@ -80,9 +80,8 @@ The current pipeline is: chunk (600 chars) → embed → top-k cosine → stuff 
 - [ ] **[P2 · M] HyDE** — generate a hypothetical answer, embed *that*, search with it. Strong recall boost for short queries.
 
 ### 2.3 Context window management (P0 · M)
-- Detect each model's context length via `ollama show`; compute a token budget for context vs. answer.
-- Truncate/prioritize retrieved chunks to fit the budget (trim middle chunks, not the most relevant ones).
-- Prompt templates per model family (Llama, Qwen, Gemma, DeepSeek…) since instruction-following formats differ.
+- [x] **Token budget enforcement** — `/api/query` reads the model's context length via `ollama show` (fallback 4096 tokens when unknown), reserves ~70%, subtracts conversation history + query overhead, then keeps top matches (sorted by similarity) until the budget is full; if even the top match can't fit it is truncated with a visible marker. Reported to the UI as `context_budget.model_context_tokens / dropped_sources` in every response. *(done — remaining: per-model-family prompt templates)*
+- [ ] Prompt templates per model family (Llama, Qwen, Gemma, DeepSeek…) since instruction-following formats differ.
 
 ### 2.4 Conversational RAG (P1 · M)
 - [x] **Multi-turn memory**: chat history is tracked per conversation and sent to `/api/query` (client keeps last 12 messages; server validates roles — only `user`/`assistant`, no system-prompt injection — clamps to the most recent 12, caps per-message length, and places history after any RAG system prompt so follow-ups like "and what about its price?" stay in context). "🧹 New Chat" button clears the conversation + memory. *(done — remaining: query *rewriting* of follow-ups, memory-window slider, per-turn token usage)*
