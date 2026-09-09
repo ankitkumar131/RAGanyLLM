@@ -166,11 +166,11 @@ menu-bot.raganyllm            (future: ZIP)
 
 ### 5.2 One-click flows everywhere (P0 · S)
 - [x] **Export & Import buttons in the Knowledge Base card** — one-click download of `raganyllm-kb-YYYY-MM-DD.raganyllm` and pick-a-file import with live progress bar. *(done)*
-- [ ] Header toolbar: **⬇ Import** and **⬆ Export** buttons; drag & drop the `.raganyllm` file anywhere in the UI.
+- [x] **Header toolbar Import/Export + drag & drop** — ⬆ Export KB and ⬇ Import Pack buttons live in the chat header; dropping a `.raganyllm`/`.json` pack anywhere in the window opens the import preview (files are forwarded to the same preview-then-import flow).
 - [x] **Import mode picker (Merge / Replace)** — merge dedupes by content hash; replace warns first. *(done)*
 - [x] **Validation on import** — schema/version check, per-chunk content validation, all-or-nothing (nothing changes if any chunk is invalid); friendly plain-language errors. *(done — incl. encrypted-pack password prompt)*
-- [ ] **Preview card** before import ("Contains: 3 documents · 412 chunks · 1 AI 'menu-bot'") + auto-backup of the current KB before a replace.
-- [ ] **Post-import wizard**: if the embedding model or base model is missing on this device → "This pack needs a small helper — download now?" with progress. Then: "🎉 Imported! Try asking: …".
+- [x] **Preview card before import** — selecting/dropping a pack calls `POST /api/kb/preview` (read-only decode; works for encrypted packs given the password) and shows a card: kind (🤖 AI vs 📦 knowledge), document/chunk counts, doc titles, embedding status, and the custom AIs inside — with explicit **⬇ Import now** / **✖ Discard**. Replace mode already auto-backs-up first. *(done)*
+- [x] **Post-import wizard** — AI-pack imports report `missing_models` (base models absent from this device's `/api/tags`); the UI offers **⬇ Download now** per model via `POST /api/ollama/pull` (NDJSON passthrough with progress), then ⟳ Rebuild in Model Forge. *(done — embedding-model case is covered at import time: compact packs re-embed through Ollama or fail with a clear message)*
 
 ### 5.3 CLI parity (P1 · S)
 - [x] **`raganyllm export` / `import` subcommands** — `bin/cli.js` dispatches on the first arg: `export [FILE] [--password …] [--no-embeddings]` (FILE defaults to `raganyllm-kb-YYYY-MM-DD.raganyllm`; default embeds-included, matching the GUI; `--no-embeddings` = compact) and `import FILE [--mode merge|replace] [--password …]` (replace auto-backs-up first; merge dedupes by content hash; embedding-less packs re-learn through Ollama, all-or-nothing on failure). `raganyllm` with no args still runs the interactive setup + server.

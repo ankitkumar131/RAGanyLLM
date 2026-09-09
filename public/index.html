@@ -601,11 +601,21 @@
           <button class="sources-btn" style="flex:1; font-size:0.7rem; padding:0.2rem 0.3rem" onclick="exportKbFormat('markdown')" title="Download the knowledge base as a readable Markdown file">⬇ Markdown</button>
           <button class="sources-btn" style="flex:1; font-size:0.7rem; padding:0.2rem 0.3rem" onclick="exportKbFormat('jsonl')" title="Download the knowledge base as JSONL (one chunk per line)">⬇ JSONL</button>
         </div>
-        <input type="file" id="kb-pack-file" accept=".raganyllm,application/json,.json" style="display:none" onchange="importKb()">
+        <input type="file" id="kb-pack-file" accept=".raganyllm,application/json,.json" style="display:none" onchange="previewKbPack()">
         <div style="display:flex; gap:0.4rem; margin-top:0.35rem">
           <input type="password" id="export-password" placeholder="🔒 Password-protect export (optional)" autocomplete="new-password" style="flex:1; min-width:0; font-size:0.72rem; padding:0.3rem 0.45rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px">
-          <input type="password" id="import-password" placeholder="Pack password, if protected" autocomplete="new-password" style="flex:1; min-width:0; font-size:0.72rem; padding:0.3rem 0.45rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px">
+          <input type="password" id="import-password" placeholder="Pack password, if protected" autocomplete="new-password" style="flex:1; min-width:0; font-size:0.72rem; padding:0.3rem 0.45rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px" onkeyup="if(pendingPackFile) previewKbPack()">
         </div>
+        <!-- Preview card shown before a pack is imported (ROADMAP §5.2) -->
+        <div id="pack-preview" style="display:none; margin-top:0.45rem; padding:0.55rem 0.65rem; border:1px solid var(--border-color); border-radius:10px; background:rgba(139,92,246,0.06); font-size:0.73rem; line-height:1.55">
+          <div id="pack-preview-body"></div>
+          <div style="display:flex; gap:0.4rem; margin-top:0.5rem">
+            <button id="btn-import-now" class="btn-secondary" style="flex:1; font-size:0.75rem; padding:0.35rem 0.3rem" onclick="importKb()">⬇ Import now</button>
+            <button class="sources-btn" style="flex:1; font-size:0.75rem; padding:0.35rem 0.3rem" onclick="discardPackPreview()">✖ Discard</button>
+          </div>
+        </div>
+        <!-- Post-import wizard: download missing base models (ROADMAP §5.2) -->
+        <div id="wizard-missing" style="display:none; margin-top:0.45rem; padding:0.55rem 0.65rem; border:1px dashed rgba(251,191,36,0.6); border-radius:10px; background:rgba(251,191,36,0.05); font-size:0.73rem; line-height:1.55"></div>
         <div style="margin-top:0.45rem; border-top:1px dashed var(--border-color); padding-top:0.4rem">
           <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.3rem">
             <button id="btn-backup-now" class="sources-btn" style="font-size:0.7rem; padding:0.2rem 0.5rem" onclick="backupNow()" title="Save a snapshot of the current knowledge base into your backups folder">💾 Back up now</button>
@@ -669,6 +679,8 @@
           <div style="font-size:0.85rem; color:var(--text-muted)">
             Active LLM: <strong id="active-model-display" style="color:#c084fc">None Selected</strong>
           </div>
+          <button class="sources-btn" style="font-size:0.75rem; padding:0.3rem 0.55rem" title="Export your knowledge base as a portable .raganyllm pack" onclick="exportKb()">⬆ Export KB</button>
+          <button class="sources-btn" style="font-size:0.75rem; padding:0.3rem 0.55rem" title="Import a .raganyllm knowledge or AI pack — or just drag & drop the file anywhere in the window" onclick="openSettingsModal(); setTimeout(function(){ document.getElementById('kb-pack-file').click(); }, 150)">⬇ Import Pack</button>
           <button class="sources-btn" style="font-size:0.75rem; padding:0.3rem 0.6rem" title="Start a new conversation (clears conversation memory)" onclick="clearChat()">🧹 New Chat</button>
           <button class="btn-icon" title="Settings" onclick="openSettingsModal()">⚙️</button>
         </div>
@@ -696,6 +708,11 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Drag & drop overlay for .raganyllm packs (ROADMAP §5.2) -->
+  <div id="drop-overlay" style="display:none; position:fixed; inset:0; z-index:10000; align-items:center; justify-content:center; background:rgba(15,23,42,0.88); border:3px dashed #22d3ee; font-family:var(--font-heading); font-size:1.5rem; color:#e0f2fe; text-align:center; pointer-events:none">
+    📦 Drop your <code style="color:#a5f3fc">.raganyllm</code> pack to import it
   </div>
 
   <!-- Settings & Model Manager Modal -->
@@ -1099,6 +1116,7 @@
       buttonEl.innerHTML = `<div class="spinner"></div> Processing...`;
 
       let hasError = false;
+      let finalData = null;
 
       try {
         const response = await fetch(endpoint, fetchOptions);
@@ -1131,6 +1149,7 @@
                 percentEl.innerText = '100%';
                 barEl.style.width = '100%';
                 statusEl.innerText = data.message || 'Complete!';
+                finalData = data;
                 await loadModelsAndStatus();
               } else if (data.status === 'warning') {
                 if (typeof onWarning === 'function') onWarning(data.detail || '');
@@ -1163,6 +1182,7 @@
           }, 8000);
         }
       }
+      return hasError ? null : finalData;
     }
 
     async function ingestFiles() {
@@ -1401,6 +1421,59 @@
       }
     }
 
+    let pendingPackFile = false;
+    let pendingMissingModels = [];
+
+    // File selected -> inspect the pack server-side and show a preview card
+    // (ROADMAP §5.2) instead of importing blindly.
+    async function previewKbPack() {
+      const input = document.getElementById('kb-pack-file');
+      const file = input.files && input.files[0];
+      const panel = document.getElementById('pack-preview');
+      const body = document.getElementById('pack-preview-body');
+      if (!file) return;
+      pendingPackFile = true;
+      panel.style.display = 'block';
+      body.innerHTML = '<span class="spinner"></span> Inspecting pack...';
+
+      const formData = new FormData();
+      formData.append('pack', file);
+      const pwd = document.getElementById('import-password');
+      const password = pwd ? pwd.value : '';
+      if (password) formData.append('password', password);
+
+      let detail = 'Could not inspect this pack.';
+      try {
+        const res = await fetch('/api/kb/preview', { method: 'POST', body: formData });
+        const d = await res.json();
+        if (res.ok && d && d.ok) {
+          renderPackPreview(d);
+          return;
+        }
+        detail = (d && d.detail) || detail;
+      } catch (e) {
+        detail = e.message;
+      }
+      body.innerHTML = `<span style="color:#f87171">⚠️ ${escapeHtml(detail)}</span><br><span style="color:var(--text-muted)">If this pack is password-protected, enter its password above — the preview refreshes as you type.</span>`;
+    }
+
+    function renderPackPreview(d) {
+      const body = document.getElementById('pack-preview-body');
+      const isAi = d.kind === 'ai';
+      const emb = d.embeddings_included ? 'embeddings included — instant, offline import' : 'no embeddings — re-learned via Ollama on import';
+      const titleLines = (d.document_titles || []).map((t) => `<li>${escapeHtml(t)}</li>`).join('');
+      const aiLines = (d.ai_models || []).map((m) => `<li><b>${escapeHtml(m.name)}</b> ← ${escapeHtml(m.base_model)}${m.custom_instructions ? ` — “${escapeHtml(m.custom_instructions)}”` : ''}</li>`).join('');
+      body.innerHTML = `<div style="display:flex; align-items:center; gap:0.4rem">
+          <span style="font-size:0.85rem">${isAi ? '🤖' : '📦'}</span>
+          <b style="color:var(--text-main)">${isAi ? 'AI Pack' : 'Knowledge Pack'} preview</b>
+          <span style="color:var(--text-muted)">· created ${escapeHtml((d.created_at || '').slice(0, 10))}</span>
+        </div>
+        <div style="margin-top:0.3rem">📄 <b>${d.total_documents}</b> document(s) · 🧩 <b>${d.total_chunks}</b> chunk(s)</div>
+        ${d.embedding_model ? `<div style="color:var(--text-muted)">🧠 embedding model: <code>${escapeHtml(d.embedding_model)}</code> — ${emb}</div>` : ''}
+        ${titleLines ? `<div style="margin-top:0.3rem; color:var(--text-muted)">Documents: <ul style="margin:0.15rem 0 0 1.1rem">${titleLines}</ul></div>` : ''}
+        ${aiLines ? `<div style="margin-top:0.3rem; color:var(--text-muted)">Custom AIs inside: <ul style="margin:0.15rem 0 0 1.1rem">${aiLines}</ul></div>` : ''}`;
+    }
+
     async function importKb() {
       const input = document.getElementById('kb-pack-file');
       const file = input.files && input.files[0];
@@ -1408,8 +1481,8 @@
 
       const mode = document.getElementById('import-mode-select').value;
       if (mode === 'replace') {
-        const ok = confirm('REPLACE mode: this will DELETE your current knowledge base on this device and replace it with the contents of the pack.\n\nContinue?');
-        if (!ok) { input.value = ''; return; }
+        const ok = confirm('REPLACE mode: this will DELETE your current knowledge base on this device and replace it with the contents of the pack. A backup is kept first so you can restore.\n\nContinue?');
+        if (!ok) return; // keep the file selected so the user can switch to Merge
       }
 
       const formData = new FormData();
@@ -1419,16 +1492,66 @@
       const password = pwdInput ? pwdInput.value : '';
       if (password) formData.append('password', password);
 
-      const btn = document.getElementById('btn-import-kb');
-      await executeIngestStream(
+      const btn = document.getElementById('btn-import-now') || document.getElementById('btn-import-kb');
+      const result = await executeIngestStream(
         '/api/kb/import',
         { method: 'POST', body: formData },
         'progress-pack', 'percent-pack', 'bar-pack', 'status-pack',
         btn
       );
       input.value = '';
+      pendingPackFile = false;
+      discardPackPreview();
       loadBackups();
       loadMyAis();
+      if (result && Array.isArray(result.missing_models) && result.missing_models.length > 0) {
+        showMissingWizard(result.missing_models);
+      }
+    }
+
+    function discardPackPreview() {
+      pendingPackFile = false;
+      const input = document.getElementById('kb-pack-file');
+      if (input) input.value = '';
+      const panel = document.getElementById('pack-preview');
+      const body = document.getElementById('pack-preview-body');
+      if (panel) panel.style.display = 'none';
+      if (body) body.innerHTML = '';
+    }
+
+    // Post-import wizard (ROADMAP §5.2): download base models this device is
+    // missing so imported AIs can be rebuilt.
+    function showMissingWizard(models) {
+      pendingMissingModels = models.slice();
+      renderMissingWizard();
+    }
+
+    function renderMissingWizard() {
+      const el = document.getElementById('wizard-missing');
+      if (!el) return;
+      if (pendingMissingModels.length === 0) { el.style.display = 'none'; el.innerHTML = ''; return; }
+      const n = pendingMissingModels.length;
+      el.style.display = 'block';
+      el.innerHTML = `<div style="color:#fbbf24">🎉 Imported! This device is missing ${n === 1 ? 'the base model' : 'base models'} needed to rebuild your AIs:</div>` +
+        pendingMissingModels.map((m) => `<div style="display:flex; align-items:center; gap:0.4rem; margin-top:0.35rem"><code>${escapeHtml(m)}</code><button class="sources-btn" style="font-size:0.62rem; padding:0.08rem 0.45rem" onclick="pullOllamaModel('${m.replace(/'/g, '')}')">⬇ Download now</button></div>`).join('') +
+        `<div style="color:var(--text-muted); margin-top:0.4rem">After downloading, rebuild each AI with ⟳ Rebuild in 🤖 Model Forge above.</div>`;
+    }
+
+    async function pullOllamaModel(name) {
+      const btn = event && event.currentTarget;
+      await executeIngestStream(
+        '/api/ollama/pull',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: name })
+        },
+        'progress-pack', 'percent-pack', 'bar-pack', 'status-pack',
+        btn
+      );
+      pendingMissingModels = pendingMissingModels.filter((m) => m !== name);
+      renderMissingWizard();
+      loadModelsAndStatus();
     }
 
     // ---- KB backups (ROADMAP §5.6): auto before Clear/Replace, restore UI ----
@@ -1796,6 +1919,43 @@
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
     }
+
+    // Drag & drop a .raganyllm pack anywhere in the window (ROADMAP §5.2).
+    let dragDepth = 0;
+    const dropOverlay = document.getElementById('drop-overlay');
+    const packInput = document.getElementById('kb-pack-file');
+    function hasPackFile(ev) {
+      return ev.dataTransfer && ev.dataTransfer.types && Array.prototype.includes.call(ev.dataTransfer.types, 'Files');
+    }
+    window.addEventListener('dragenter', (ev) => {
+      if (!hasPackFile(ev)) return;
+      ev.preventDefault();
+      dragDepth++;
+      dropOverlay.style.display = 'flex';
+    });
+    window.addEventListener('dragover', (ev) => { if (hasPackFile(ev)) ev.preventDefault(); });
+    window.addEventListener('dragleave', (ev) => {
+      if (!hasPackFile(ev)) return;
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) dropOverlay.style.display = 'none';
+    });
+    window.addEventListener('drop', (ev) => {
+      if (!hasPackFile(ev)) return;
+      ev.preventDefault();
+      dragDepth = 0;
+      dropOverlay.style.display = 'none';
+      const file = ev.dataTransfer.files && ev.dataTransfer.files[0];
+      if (!file) return;
+      const name = (file.name || '').toLowerCase();
+      if (!(name.endsWith('.raganyllm') || name.endsWith('.json'))) {
+        alert('Drop a .raganyllm knowledge pack file to import it.');
+        return;
+      }
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      packInput.files = dt.files;
+      previewKbPack();
+    });
 
     loadModelsAndStatus();
     loadBackups();

@@ -15,7 +15,7 @@ const { createServer } = require('../lib/server');
 
 
 // ---------------------------------------------------------------- fake Ollama
-const ollamaState = { lastChatMessages: null, createCalls: [], tags: [] };
+const ollamaState = { lastChatMessages: null, createCalls: [], tags: [], pulls: [] };
 function startFakeOllama() {
   return new Promise((resolve) => {
     const readBody = (req) => new Promise((r) => {
@@ -68,6 +68,14 @@ function startFakeOllama() {
       if (req.url === '/api/delete') {
         res.setHeader('Content-Type', 'application/json');
         return res.end(JSON.stringify({}));
+      }
+      if (req.url === '/api/pull') {
+        const body = await readBody(req);
+        ollamaState.pulls.push(body.name);
+        res.writeHead(200, { 'Content-Type': 'application/x-ndjson' });
+        res.write(JSON.stringify({ status: 'pulling manifest' }) + '\n');
+        res.write(JSON.stringify({ status: 'verifying sha256 digest' }) + '\n');
+        return res.end(JSON.stringify({ status: 'success' }));
       }
       res.writeHead(404);
       return res.end('nf');
@@ -442,5 +450,108 @@ test('create-own-AI: analyze-fit + export warns when KB exceeds the model contex
     });
     const emptyLines = (await empty.text()).trim().split('\n').map((l) => JSON.parse(l));
     assert.strictEqual(emptyLines[emptyLines.length - 1].status, 'error');
+  } finally { await stopApp(app); }
+});
+
+test('pack preview endpoint: summaries without mutating the KB (incl. encrypted)', async () => {
+  seedKb([[DOC('a', 'Doc', 'Some factual knowledge about dragons for retrieval.', 'File: Doc.md'), EMB(0)]]);
+  const app = await startApp();
+  try {
+    // Plain pack preview.
+    const exp = await fetch(`http://127.0.0.1:${app.port}/api/kb/export`, { method: 'POST' });
+    const pack = await exp.json();
+    const fd = new FormData();
+    fd.append('pack', new Blob([JSON.stringify(pack)], { type: 'application/json' }), 'p.raganyllm');
+    const prev = await fetch(`http://127.0.0.1:${app.port}/api/kb/preview`, { method: 'POST', body: fd });
+    const d = await prev.json();
+    assert.strictEqual(d.ok, true);
+    assert.strictEqual(d.kind, 'knowledge');
+    assert.strictEqual(d.total_documents, 1);
+    assert.strictEqual(d.total_chunks, 1);
+    assert.strictEqual(d.embeddings_included, true);
+    assert.deepStrictEqual(d.ai_models, []);
+
+    // Preview of an encrypted pack without/with password.
+    const expEnc = await fetch(`http://127.0.0.1:${app.port}/api/kb/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: 'hunter2' })
+    });
+    const enc = await expEnc.json();
+    const fdNoPw = new FormData();
+    fdNoPw.append('pack', new Blob([JSON.stringify(enc)], { type: 'application/json' }), 'enc.raganyllm');
+    const noPw = await fetch(`http://127.0.0.1:${app.port}/api/kb/preview`, { method: 'POST', body: fdNoPw });
+    assert.strictEqual(noPw.status, 400);
+    assert.match((await noPw.json()).detail, /password-protected/);
+
+    const fdWrong = new FormData();
+    fdWrong.append('pack', new Blob([JSON.stringify(enc)], { type: 'application/json' }), 'enc.raganyllm');
+    fdWrong.append('password', 'nope');
+    const wrong = await fetch(`http://127.0.0.1:${app.port}/api/kb/preview`, { method: 'POST', body: fdWrong });
+    assert.strictEqual(wrong.status, 400);
+
+    const fdGood = new FormData();
+    fdGood.append('pack', new Blob([JSON.stringify(enc)], { type: 'application/json' }), 'enc.raganyllm');
+    fdGood.append('password', 'hunter2');
+    const good = await fetch(`http://127.0.0.1:${app.port}/api/kb/preview`, { method: 'POST', body: fdGood });
+    const dg = await good.json();
+    assert.strictEqual(dg.ok, true);
+    assert.strictEqual(dg.total_chunks, 1);
+
+    // Preview never mutates the KB (clear first, preview a 1-chunk pack, KB stays empty).
+    await reqJson(app.port, 'POST', '/api/clear-kb', {});
+    const fd2 = new FormData();
+    fd2.append('pack', new Blob([JSON.stringify(pack)], { type: 'application/json' }), 'p.raganyllm');
+    await fetch(`http://127.0.0.1:${app.port}/api/kb/preview`, { method: 'POST', body: fd2 });
+    const m = await (await fetch(`http://127.0.0.1:${app.port}/api/models`)).json();
+    assert.strictEqual(m.knowledge_base.total_chunks, 0, 'preview must not import');
+  } finally { await stopApp(app); }
+});
+
+test('AI-pack import reports missing base models; /api/ollama/pull proxies downloads', async () => {
+  seedEmpty();
+  const app = await startApp();
+  try {
+    ollamaState.pulls.length = 0;
+    // Craft an AI pack whose base model is NOT in the fake /api/tags list.
+    const pack = {
+      format: 'raganyllm-pack',
+      version: 1,
+      kind: 'ai',
+      created_at: new Date().toISOString(),
+      stats: { total_chunks: 1, total_documents: 1 },
+      settings: { embedding_model: 'nomic-embed-text' },
+      knowledge: { chunks: [{ id: 'k1', doc_title: 'Doc', content: 'Drone flight safety notes.', source: 'File: d.md', chunk_index: 0 }], embeddings: [[1, 0, 0, 0, 0, 0, 0, 0]] },
+      ai: { models: [{ name: 'drone-bot:latest', base_model: 'not-installed:latest', custom_instructions: 'Talk drones.' }] }
+    };
+    const fd = new FormData();
+    fd.append('pack', new Blob([JSON.stringify(pack)], { type: 'application/json' }), 'drone.raganyllm');
+    fd.append('mode', 'merge');
+    const res = await fetch(`http://127.0.0.1:${app.port}/api/kb/import`, { method: 'POST', body: fd });
+    const lines = (await res.text()).trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    const done = lines[lines.length - 1];
+    assert.strictEqual(done.status, 'complete');
+    assert.deepStrictEqual(done.missing_models, ['not-installed:latest']);
+    assert.match(done.message, /1 AI definition\(s\) registered/);
+
+    // Pull endpoint: NDJSON passthrough, final complete, model recorded.
+    const pullRes = await fetch(`http://127.0.0.1:${app.port}/api/ollama/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gpt-oss:20b' })
+    });
+    const pullLines = (await pullRes.text()).trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    assert.ok(pullLines.some((l) => l.status === 'progress' && /pulling manifest/.test(l.stage)));
+    assert.strictEqual(pullLines[pullLines.length - 1].status, 'complete');
+    assert.strictEqual(ollamaState.pulls[ollamaState.pulls.length - 1], 'gpt-oss:20b');
+
+    // Invalid model names are rejected with a clean error.
+    const bad = await fetch(`http://127.0.0.1:${app.port}/api/ollama/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: '../evil' })
+    });
+    const badLines = (await bad.text()).trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    assert.strictEqual(badLines[badLines.length - 1].status, 'error');
   } finally { await stopApp(app); }
 });
