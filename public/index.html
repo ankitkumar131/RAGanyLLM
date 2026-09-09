@@ -2418,6 +2418,17 @@
       return m;
     }
 
+    // §2.1: markdown-aware chunks carry heading / heading_path metadata, so a
+    // source card can tell you *where inside the document* the match lived.
+    function sourceHeadingLabel(s) {
+      if (s.heading) {
+        const trail = (s.heading_path && s.heading_path !== '') ? `${s.heading_path} › ` : '';
+        return trail + s.heading;
+      }
+      if (s.heading_path && s.heading_path !== '') return `${s.heading_path} › …`;
+      return '';
+    }
+
     function answerSourcesFooter(meta, statusNote) {
       const useRag = meta ? meta.rag_enabled : false;
       const ragStatus = meta ? meta.rag_status : '';
@@ -2432,15 +2443,19 @@
               🔍 Retrieved Knowledge Base Sources (${sources.length}) ▼
             </button>
             <div id="${srcId}" class="sources-body">
-              ${sources.map(s => `
+              ${sources.map(s => {
+                const headingLabel = sourceHeadingLabel(s);
+                return `
                 <div class="source-card">
                   <div class="source-header">
                     <span>📄 ${escapeHtml(s.doc_title)}</span>
                     <span>Match: ${Math.round(s.similarity_score * 100)}%</span>
                   </div>
+                  ${headingLabel ? `<div style="margin:0.15rem 0 0.4rem;font-size:0.72rem;color:#93c5fd;background:rgba(147,197,253,0.08);border:1px solid rgba(147,197,253,0.2);border-radius:999px;display:inline-block;padding:0.1rem 0.55rem">🗂 ${escapeHtml(headingLabel)}</div>` : ''}
                   <div style="color:#9ca3af">${escapeHtml(s.content)}</div>
                 </div>
-              `).join('')}
+              `;
+              }).join('')}
             </div>
           </div>
         `;

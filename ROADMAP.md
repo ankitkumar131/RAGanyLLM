@@ -68,9 +68,9 @@ A 4-step guided setup the first time the app runs (and re-runnable from Settings
 The current pipeline is: chunk (600 chars) → embed → top-k cosine → stuff into prompt. That is *minimal viable RAG*. A serious upgrade path:
 
 ### 2.1 Smart chunking (P1 · M)
+- [x] **Structure-aware splitting for Markdown** — `lib/chunker.js` (`markdownChunks`) walks lines into heading sections (# → full heading stack), treats fenced code blocks as atomic (kept intact whenever they fit; oversized fences/paragraphs are sliced on line/character boundaries only as a last resort), and never mistakes a `#` inside a fence for a heading. `.md`/`.markdown` file uploads use it; plain text keeps the canonical character chunker (`splitPlain`, moved into the same module so there is one source of truth). Continuation chunks repeat the section in `heading_path` so every snippet stays locatable.
+- [x] **Heading/citation metadata on every chunk** — chunks now carry `heading` (section title, set on the section's first chunk) and `heading_path` (`Guide › Brewing`, also on continuation chunks). Metadata rides through the vector store, `/api/kb/export` + pack re-import, retrieval, the LLM context header (`[SOURCE 2: doc.md — Section: Guide › Brewing]`), and the chat source cards (🗂 chip shows where the match lived). *(done — PDF page numbers need §2.6/§3 per-page parsing; list/table boundary preference remains for a later pass)*
 - Token-aware chunker (respect each model's context), not raw characters.
-- Structure-aware splitting for Markdown (headers → sections), code blocks kept intact, list/table boundaries preferred.
-- Heading/citation metadata attached to every chunk (chunk → "Section 2.3 · page 12 · file X") for better citations and display.
 - Re-chunk on config change with a **"Re-process my knowledge base"** button (store source docs separately from chunks so re-chunking never needs re-upload).
 
 ### 2.2 Retrieval quality (P0/P1)
