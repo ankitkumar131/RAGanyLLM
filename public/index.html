@@ -617,10 +617,13 @@
 
         <div style="display:flex; align-items:center; gap:1.25rem">
           <!-- Toggle Switch for Live RAG Search Context -->
-          <label class="toggle-label" title="Uncheck to query selected model raw without RAG context injection">
-            <input type="checkbox" id="use-rag-checkbox" checked style="accent-color:var(--accent-purple); cursor:pointer">
-            <span>Inject Live RAG Context</span>
-          </label>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.15rem">
+            <label class="toggle-label" title="Uncheck to query selected model raw without RAG context injection">
+              <input type="checkbox" id="use-rag-checkbox" checked style="accent-color:var(--accent-purple); cursor:pointer">
+              <span>Inject Live RAG Context</span>
+            </label>
+            <div id="rag-settings-caption" style="font-size:0.66rem; color:var(--text-muted)">—</div>
+          </div>
 
           <div style="font-size:0.85rem; color:var(--text-muted)">
             Active LLM: <strong id="active-model-display" style="color:#c084fc">None Selected</strong>
@@ -679,17 +682,43 @@
           </div>
           <div id="modal-dir-status" style="font-size:0.75rem; color:#34d399; margin-top:0.35rem"></div>
         </div>
+
+        <!-- Advanced Retrieval Settings -->
+        <div style="border-top:1px solid var(--border-color); padding-top:1rem">
+          <div class="section-title">Retrieval (Advanced)</div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.6rem; line-height:1.4">
+            Tune how answers use your knowledge base.
+            <strong>Minimum match</strong> higher = only very close matches are used (fewer, better sources);
+            lower = more loose matches. <strong>Top matches</strong> = how many snippets can be injected.
+          </div>
+          <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.6rem">
+            <label for="modal-topk" style="font-size:0.8rem; white-space:nowrap">Top matches:</label>
+            <input type="number" id="modal-topk" min="1" max="20" step="1" value="4"
+              style="width:64px; padding:0.3rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px">
+          </div>
+          <div style="display:flex; align-items:center; gap:0.75rem">
+            <label for="modal-threshold" style="font-size:0.8rem; white-space:nowrap">Minimum match:</label>
+            <input type="range" id="modal-threshold" min="5" max="90" step="1" value="40" style="flex:1; accent-color:var(--accent-purple)">
+            <span id="modal-threshold-val" style="font-size:0.8rem; min-width:3.2rem; text-align:right; color:#c084fc">40%</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.75rem">
+            <button class="btn-primary" id="btn-save-retrieval" onclick="saveRetrievalSettings()">Save Retrieval Settings</button>
+            <span id="modal-retrieval-status" style="font-size:0.75rem; color:#34d399"></span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
   <script>
     let globalModels = [];
+    let lastStatusData = null; // latest /api/models payload (used by Settings modal)
 
     async function loadModelsAndStatus() {
       try {
         const res = await fetch('/api/models');
         const data = await res.json();
+        lastStatusData = data;
         globalModels = data.models || [];
 
         const ollamaBadge = document.getElementById('ollama-status');
@@ -720,6 +749,10 @@
         }
 
         document.getElementById('active-model-display').innerText = select.value || 'None';
+        const ragCaption = document.getElementById('rag-settings-caption');
+        if (ragCaption && data.retrieval) {
+          ragCaption.textContent = `top ${data.retrieval.top_k} match(es) \u00b7 \u2265 ${Math.round(data.retrieval.similarity_threshold * 100)}% match`;
+        }
 
         const dirInput = document.getElementById('models-dir-input');
         if (document.activeElement !== dirInput && data.ollama_models_dir) {
@@ -802,8 +835,79 @@
       document.getElementById('settings-modal').classList.add('active');
       const dirInput = document.getElementById('models-dir-input').value;
       document.getElementById('modal-dir-input').value = dirInput;
+
+      const r = (lastStatusData && lastStatusData.retrieval) || { top_k: 4, similarity_threshold: 0.4 };
+      const topk = document.getElementById('modal-topk');
+      const thr = document.getElementById('modal-threshold');
+      if (topk) topk.value = r.top_k;
+      if (thr) {
+        thr.value = Math.round(r.similarity_threshold * 100);
+        syncThresholdLabel();
+      }
       renderModalModelsList();
     }
+
+    function syncThresholdLabel() {
+      const thr = document.getElementById('modal-threshold');
+      const val = document.getElementById('modal-threshold-val');
+      if (thr && val) val.textContent = thr.value + '%';
+    }
+
+    async function saveRetrievalSettings() {
+      const status = document.getElementById('modal-retrieval-status');
+      const topkEl = document.getElementById('modal-topk');
+      const thrEl = document.getElementById('modal-threshold');
+      let top_k = parseInt(topkEl.value, 10);
+      if (Number.isNaN(top_k)) top_k = 4;
+      top_k = Math.min(20, Math.max(1, top_k));
+      const thresholdPct = parseInt(thrEl.value, 10) || 40;
+      const similarity_threshold = Math.min(0.9, Math.max(0.05, thresholdPct / 100));
+
+      status.style.color = '#a78bfa';
+      status.textContent = 'Saving...';
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ top_k, similarity_threshold })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          status.style.color = '#34d399';
+          status.textContent = `✔ Saved (top ${data.config.top_k} · ${Math.round(data.config.similarity_threshold * 100)}% match)`;
+          await loadModelsAndStatus();
+        } else {
+          status.style.color = '#f87171';
+          status.textContent = `Error: ${data.detail || 'Failed to save'}`;
+        }
+      } catch (e) {
+        status.style.color = '#f87171';
+        status.textContent = `Error: ${e.message}`;
+      }
+    }
+
+    function copyText(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => alert('Answer copied to clipboard.')).catch(() => legacyCopy(text));
+      } else {
+        legacyCopy(text);
+      }
+    }
+    function legacyCopy(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); alert('Answer copied to clipboard.'); } catch (e) { alert('Could not copy — select the text manually.'); }
+      ta.remove();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const thr = document.getElementById('modal-threshold');
+      if (thr) thr.addEventListener('input', syncThresholdLabel);
+    });
 
     function closeSettingsModal() {
       document.getElementById('settings-modal').classList.remove('active');
@@ -1311,6 +1415,14 @@
           answerDiv.innerHTML = '<span style="color:#9ca3af">(The model returned an empty response.)</span>';
         } else {
           renderAnswer();
+          const tb = document.createElement('div');
+          tb.style.cssText = 'display:flex; gap:0.5rem; margin-top:0.55rem';
+          const copyBtn = document.createElement('button');
+          copyBtn.className = 'sources-btn';
+          copyBtn.textContent = '📋 Copy answer';
+          copyBtn.addEventListener('click', () => copyText(rawAnswer));
+          tb.appendChild(copyBtn);
+          answerDiv.appendChild(tb);
         }
         answerDiv.insertAdjacentHTML('beforeend', answerSourcesFooter(meta, ''));
       } else if (errored) {
