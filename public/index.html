@@ -553,6 +553,10 @@
             🤖 Build & Create My AI
           </button>
           <div id="export-warning" style="display:none; font-size:0.75rem; color:#fbbf24; background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.25); border-radius:8px; padding:0.45rem 0.6rem; line-height:1.4"></div>
+          <div style="border-top:1px dashed var(--border-color); padding-top:0.4rem; margin-top:0.2rem">
+            <div style="font-size:0.72rem; color:#c084fc; margin-bottom:0.25rem">🤖 Your AIs on this device (included in 🤖 AI Pack exports)</div>
+            <div id="my-ais-list" style="font-size:0.7rem; color:var(--text-muted); line-height:1.5"></div>
+          </div>
         </div>
 
         <!-- Progress Loader for Standalone Model Creation -->
@@ -582,6 +586,9 @@
         <div style="display:flex; gap:0.4rem; margin-top:0.5rem">
           <button id="btn-export-kb" class="btn-secondary" style="flex:1; padding:0.4rem 0.3rem; font-size:0.78rem" onclick="exportKb()" title="Save your knowledge base as a portable .raganyllm file you can import on another device">⬆ Export KB</button>
           <button id="btn-import-kb" class="btn-secondary" style="flex:1; padding:0.4rem 0.3rem; font-size:0.78rem" onclick="document.getElementById('kb-pack-file').click()" title="Import a .raganyllm knowledge pack from another device">⬇ Import KB</button>
+        </div>
+        <div style="margin-top:0.35rem">
+          <button id="btn-export-ai" class="sources-btn" style="width:100%; font-size:0.7rem; padding:0.3rem 0.4rem" onclick="exportKb('ai')" title="Download one .raganyllm file with your knowledge base AND your custom AIs (name, base model, rules) — import it on any device to restore both">🤖 Export AI Pack — knowledge + your custom AIs</button>
         </div>
         <div style="display:flex; align-items:center; gap:0.4rem; margin-top:0.35rem">
           <select id="import-mode-select" style="flex:1; font-size:0.72rem; padding:0.25rem 0.35rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px" title="How to add imported knowledge to this device">
@@ -1305,6 +1312,52 @@
       nameInput.value = '';
       lastFitKey = ''; // KB unchanged, but force a fresh check next time
       setTimeout(refreshFitAnalysis, 600);
+      loadMyAis();
+    }
+
+    // Your AIs registry (Model Forge): listed so AI packs can be rebuilt.
+    async function loadMyAis() {
+      const el = document.getElementById('my-ais-list');
+      if (!el) return;
+      try {
+        const res = await fetch('/api/ais');
+        const data = await res.json();
+        const ais = (data && data.ais) || [];
+        if (ais.length === 0) {
+          el.innerHTML = 'No custom AIs built yet — use the builder above. AIs you build here travel inside 🤖 AI Pack exports.';
+          return;
+        }
+        el.innerHTML = ais.map((a) => {
+          const inst = a.custom_instructions ? ` — “${escapeHtml(a.custom_instructions.slice(0, 60))}${a.custom_instructions.length > 60 ? '…' : ''}”` : '';
+          const kb = (a.kb && a.kb.documents) ? ` · built from ${a.kb.documents} doc(s)` : '';
+          return `<div style="display:flex; align-items:center; gap:0.4rem">
+            <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap"><b style="color:var(--text-main)">${escapeHtml(a.name)}</b> ← ${escapeHtml(a.base_model)}${kb}${inst}</span>
+            <button class="sources-btn" style="font-size:0.62rem; padding:0.08rem 0.45rem; white-space:nowrap" onclick="rebuildAi('${a.name.replace(/'/g, '')}')" title="Rebuild this AI from your current knowledge base in Ollama">⟳ Rebuild</button>
+          </div>`;
+        }).join('<div style="height:0.35rem"></div>');
+      } catch (e) { /* ignore */ }
+    }
+
+    async function rebuildAi(name) {
+      const btn = document.getElementById('btn-export-model');
+      const original = btn ? btn.innerHTML : '';
+      const warnEl = document.getElementById('export-warning');
+      if (warnEl) { warnEl.style.display = 'none'; warnEl.textContent = ''; }
+      try {
+        await executeIngestStream(
+          '/api/ai/rebuild',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+          },
+          'progress-export', 'percent-export', 'bar-export', 'status-export',
+          btn,
+          (msg) => { if (warnEl) { warnEl.style.display = 'block'; warnEl.innerHTML = msg; } }
+        );
+      } finally {
+        loadMyAis();
+      }
     }
 
     async function clearKB() {
@@ -1314,18 +1367,18 @@
       loadBackups();
     }
 
-    async function exportKb() {
-      const btn = document.getElementById('btn-export-kb');
-      const original = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = `<div class="spinner"></div> Exporting...`;
+    async function exportKb(kind) {
+      const isAi = kind === 'ai';
+      const btn = isAi ? document.getElementById('btn-export-ai') : document.getElementById('btn-export-kb');
+      const original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = `<div class="spinner"></div> Exporting...`; }
       try {
         const pwdInput = document.getElementById('export-password');
         const password = pwdInput ? pwdInput.value : '';
-        const res = await fetch('/api/kb/export', {
+        const res = await fetch(`/api/kb/export?kind=${isAi ? 'ai' : 'knowledge'}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password })
+          body: JSON.stringify({ password, kind: isAi ? 'ai' : 'knowledge' })
         });
         if (!res.ok) {
           let detail = `HTTP ${res.status}`;
@@ -1336,7 +1389,7 @@
         const blob = await res.blob();
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `raganyllm-kb-${new Date().toISOString().slice(0, 10)}.raganyllm`;
+        a.download = `${isAi ? 'raganyllm-ai' : 'raganyllm-kb'}-${new Date().toISOString().slice(0, 10)}.raganyllm`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -1344,8 +1397,7 @@
       } catch (e) {
         alert(`Export failed: ${e.message}`);
       } finally {
-        btn.disabled = false;
-        btn.innerHTML = original;
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
       }
     }
 
@@ -1376,6 +1428,7 @@
       );
       input.value = '';
       loadBackups();
+      loadMyAis();
     }
 
     // ---- KB backups (ROADMAP §5.6): auto before Clear/Replace, restore UI ----
@@ -1746,6 +1799,7 @@
 
     loadModelsAndStatus();
     loadBackups();
+    loadMyAis();
     setInterval(loadModelsAndStatus, 15000);
   </script>
 </body>

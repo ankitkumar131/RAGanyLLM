@@ -159,9 +159,9 @@ menu-bot.raganyllm            (future: ZIP)
     └── vectors.npy           # row order == chunks.jsonl
 ```
 
-- [ ] **Two export flavors** in the UI:
-  - **💾 Knowledge Pack** — documents + chunks + settings (embeddings optional). Small, human-readable, re-embeds on import. *(shipped as compact option)*
-  - **🤖 AI Pack** — Knowledge Pack + the custom-AI cards/Modelfiles so the recipient gets your finished assistant, not just raw knowledge.
+- [x] **Two export flavors** in the UI:
+  - **💾 Knowledge Pack** — documents + chunks + settings (embeddings optional). Small, human-readable, re-embeds on import. *(done — ⬆ Export KB)*
+  - **🤖 AI Pack** — Knowledge Pack + the custom-AI definitions (name, base model, rules, build stats) so the recipient gets your finished assistant, not just raw knowledge. *(done — 🤖 Export AI Pack button; Model Forge now keeps a persistent `raganyllm-ais.json` registry; imports register the AIs and they can be **⟳ Rebuilt** from the recipient's current KB — rebuilt AIs travel forward in the next export. Packs store definitions, not Modelfile text, so a rebuilt AI reflects the current knowledge base.)*
 - [x] **Encrypt option** — optional password protection on pack export (AES-256-GCM + scrypt key derivation, `raganyllm-pack-enc` wrapper, no plaintext leak in the file). Import detects the wrapper and asks for the password; wrong password / tampered file produces a friendly error and changes nothing. *(done — UI: 🔒 password inputs beside Export/Import KB)*
 
 ### 5.2 One-click flows everywhere (P0 · S)
