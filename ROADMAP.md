@@ -48,7 +48,7 @@ A 4-step guided setup the first time the app runs (and re-runnable from Settings
 
 ### 1.2 Plain-language everything (P0 · M)
 - Replace every technical status with human text + a "Why?" tooltip: "embedding" → "Teaching the AI to understand your words"; "vector store" → "Your AI's memory"; "chunking" → "Cutting documents into readable pieces".
-- First-class **Error Doctor**: every error gets an icon, a plain explanation, the fix, and a "Fix it for me" button (e.g. "Ollama is not running" → button "Start Ollama"). *(partial: `friendlyError()` maps common failures — Ollama down, model not installed, embedding failure, oversized context — into plain-language hints in the chat UI; query errors now render action buttons: **Get Ollama** download link, **check-again** (refreshes the connection), **manage models**, and **↻ Retry my question**. Ingestion/import progress errors still show plain text — wiring them to the same action cards remains)*
+- [x] **Error Doctor** — every error gets an icon, a plain explanation, the fix, and a "Fix it for me" action card: `friendlyError()` maps Ollama-down, model-not-installed, embedding failure and oversized-context messages; action buttons are rendered by the same helper everywhere — chat answers (<b>Get Ollama</b>, check-again, manage models, ↻ Retry my question) AND ingest/import/progress failures (check-again / manage models, no chat-retry). *(done — remaining polish: an optional "Start Ollama" deep-link/launcher button)*
 - [x] **Status traffic light** always visible in the chat header: 🟢 Ready to chat / 🟡 Needs attention / 🔴 Setup required, with a one-line reason tooltip — driven by live Ollama connection, embedding-model install state, selected chat model, and KB contents (refresh every 15 s). *(done — sidebar Ollama/embedding badges additionally reflect live state)*
 
 ### 1.3 Modes (P0 · S)
@@ -58,7 +58,7 @@ A 4-step guided setup the first time the app runs (and re-runnable from Settings
 ### 1.4 Guided "My AI" creator (P0 · L — centerpiece, see §4)
 
 ### 1.5 Learning content (P1 · M)
-- In-app 90-second tutorial overlay + short video; "What is RAG?" explainer page (with a real diagram of their own data flow); FAQ. *(open — the §1.1 wizard already acts as a guided mini-tour; a self-contained explainer/FAQ modal remains)*
+- [x] **Explainer + FAQ** — ❓ **Help** modal (chat header) explains the exact pipeline with <i>live numbers from this device</i> (documents/chunks, embedding model, search mode) and a six-question FAQ accordion (getting started, Live-RAG context, "no context found", moving your AI between computers, Ollama offline, Simple vs Advanced). *(done — a 90-second narrated video is out of scope for an offline local app; the §1.1 wizard doubles as the guided tour)*
 - [x] **Chat empty state** — until the first message, the chat shows "💡 Your AI knows N document(s) (M chunk(s)) — try asking:" with up to 3 suggestion chips generated from the KB (`GET /api/setup/questions`); picking one asks the question immediately. Hidden as soon as you type (re-appears after 🧹 New Chat).
 
 ---

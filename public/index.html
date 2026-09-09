@@ -756,6 +756,7 @@
           <button class="sources-btn" style="font-size:0.75rem; padding:0.3rem 0.55rem" title="Export your knowledge base as a portable .raganyllm pack" onclick="exportKb()">⬆ Export KB</button>
           <button class="sources-btn" style="font-size:0.75rem; padding:0.3rem 0.55rem" title="Import a .raganyllm knowledge or AI pack — or just drag & drop the file anywhere in the window" onclick="openSettingsModal(); setTimeout(function(){ document.getElementById('kb-pack-file').click(); }, 150)">⬇ Import Pack</button>
           <button class="sources-btn" style="font-size:0.75rem; padding:0.3rem 0.6rem" title="Start a new conversation (clears conversation memory)" onclick="clearChat()">🧹 New Chat</button>
+          <button class="sources-btn" style="font-size:0.75rem; padding:0.3rem 0.55rem" title="How raganyllm works + quick help" onclick="openHelpModal()">❓ Help</button>
           <button class="btn-icon" title="Settings" onclick="openSettingsModal()">⚙️</button>
         </div>
       </div>
@@ -909,6 +910,54 @@
     </div>
   </div>
 
+  <!-- ROADMAP §1.5: "How RAG works" explainer + FAQ -->
+  <div id="help-modal" class="modal-overlay" onclick="if(event.target===this) closeHelpModal()">
+    <div class="modal-content" style="max-width:640px">
+      <div class="modal-header">
+        <div class="modal-title">❓ Help — how your AI works</div>
+        <button class="close-btn" onclick="closeHelpModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="gap:1rem">
+        <div style="border:1px solid var(--border-color); border-radius:12px; padding:0.8rem 0.95rem">
+          <div class="section-title" style="margin:0 0 0.4rem">🧠 What happens when you chat (with your numbers)</div>
+          <div style="font-size:0.78rem; color:var(--text-muted); line-height:1.6; display:flex; flex-direction:column; gap:0.35rem">
+            <div>1️⃣ You <b style="color:#fff">add documents</b> — raganyllm cuts them into pieces (<b style="color:#fff" id="help-n-chunks">0</b> chunks from <b style="color:#fff" id="help-n-docs">0</b> documents).</div>
+            <div>2️⃣ Each piece is <b style="color:#fff">taught to the AI</b> — turned into a number-vector by the <code id="help-emb">embedding model</code> so meaning, not just words, can be matched.</div>
+            <div>3️⃣ When you ask a question, the AI <b style="color:#fff">searches your knowledge base</b> (top matches at or above your similarity threshold, in <span id="help-mode">vector</span> mode) instead of guessing.</div>
+            <div>4️⃣ It <b style="color:#fff">answers with those sources attached</b> — every response shows the 🔍 sources it used, so you can check it didn't invent anything.</div>
+          </div>
+        </div>
+        <div>
+          <div class="section-title">❓ Quick answers</div>
+          <details style="border:1px solid var(--border-color); border-radius:10px; padding:0.55rem 0.7rem; margin-bottom:0.45rem; background:rgba(30,41,67,.4)">
+            <summary style="cursor:pointer; font-size:0.82rem; color:#e5e7eb; font-weight:600">How do I start?</summary>
+            <div style="font-size:0.78rem; color:var(--text-muted); margin-top:0.4rem; line-height:1.5">Pick a chat model in the left sidebar, then just type below. New here? Run the 🪄 <b>Setup Assistant</b> (Settings) for a guided start, or load ✨ sample documents to try instantly.</div>
+          </details>
+          <details style="border:1px solid var(--border-color); border-radius:10px; padding:0.55rem 0.7rem; margin-bottom:0.45rem; background:rgba(30,41,67,.4)">
+            <summary style="cursor:pointer; font-size:0.82rem; color:#e5e7eb; font-weight:600">What is "Live RAG context"?</summary>
+            <div style="font-size:0.78rem; color:var(--text-muted); margin-top:0.4rem; line-height:1.5">RAG (Retrieval-Augmented Generation) = answering with <i>your</i> documents. With it ON, the model only sees relevant snippets from your knowledge base. Turn it OFF to compare: the model then answers purely from its own general knowledge.</div>
+          </details>
+          <details style="border:1px solid var(--border-color); border-radius:10px; padding:0.55rem 0.7rem; margin-bottom:0.45rem; background:rgba(30,41,67,.4)">
+            <summary style="cursor:pointer; font-size:0.82rem; color:#e5e7eb; font-weight:600">Why did it say "No relevant context found"?</summary>
+            <div style="font-size:0.78rem; color:var(--text-muted); margin-top:0.4rem; line-height:1.5">Nothing in your knowledge base was similar enough (above your minimum-match setting). The answer then comes from general knowledge. Add a document about that topic, or lower "Minimum match" in Settings → Advanced.</div>
+          </details>
+          <details style="border:1px solid var(--border-color); border-radius:10px; padding:0.55rem 0.7rem; margin-bottom:0.45rem; background:rgba(30,41,67,.4)">
+            <summary style="cursor:pointer; font-size:0.82rem; color:#e5e7eb; font-weight:600">How do I move my AI to another computer?</summary>
+            <div style="font-size:0.78rem; color:var(--text-muted); margin-top:0.4rem; line-height:1.5">⬆ <b>Export KB</b> (or 🤖 Export AI Pack) saves everything into one <code>.raganyllm</code> file; on the other device use ⬇ <b>Import KB</b>. On the same Wi-Fi you can also use 🔗 <b>Share KB</b> (single-use link + QR) or its <b>Import from link</b>.</div>
+          </details>
+          <details style="border:1px solid var(--border-color); border-radius:10px; padding:0.55rem 0.7rem; margin-bottom:0.45rem; background:rgba(30,41,67,.4)">
+            <summary style="cursor:pointer; font-size:0.82rem; color:#e5e7eb; font-weight:600">The AI engine (Ollama) is offline — what now?</summary>
+            <div style="font-size:0.78rem; color:var(--text-muted); margin-top:0.4rem; line-height:1.5">Open the Ollama app (or run <code>ollama serve</code>) and wait a few seconds — the status pill in the header turns 🟢 automatically. Install Ollama from <a href="https://ollama.com/download" target="_blank" rel="noopener" style="color:#a78bfa">ollama.com/download</a>.</div>
+          </details>
+          <details style="border:1px solid var(--border-color); border-radius:10px; padding:0.55rem 0.7rem; background:rgba(30,41,67,.4)">
+            <summary style="cursor:pointer; font-size:0.82rem; color:#e5e7eb; font-weight:600">What do Simple and Advanced mode do?</summary>
+            <div style="font-size:0.78rem; color:var(--text-muted); margin-top:0.4rem; line-height:1.5">Settings opens in 🙂 <b>Simple</b> — one "How much detail?" control. 🧑‍🔬 <b>Advanced</b> reveals the expert knobs: top matches, minimum match, search mode (vector vs hybrid keywords), rerank/expansion/HyDE, the model manager, and storage location. Simple never resets your saved values.</div>
+          </details>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ROADMAP §1.1: First-Run Wizard (guided setup; re-runnable from Settings) -->
   <div id="setup-wizard" class="sw-overlay">
     <div class="sw-card">
@@ -1035,28 +1084,22 @@
     }
 
     // ---- ROADMAP §1.2: Error Doctor with "Fix it for me" actions -----------
-    function errorBlockHtml(msg) {
+    function errorBlockHtml(msg, includeChatRetry) {
       const m = String(msg || '');
-      let text = friendlyError(m);
+      const text = friendlyError(m);
+      const retry = includeChatRetry !== false ? `<button onclick="retryLastQuery()">↻ Retry my question</button>` : '';
+      const check = `<button onclick="loadModelsAndStatus(); updateStatusPill();">↻ Check Ollama again</button>`;
+      const settings = `<button onclick="openSettingsModal()">⚙️ Manage models & settings</button>`;
+      const getOllama = `<button onclick="window.open('https://ollama.com/download','_blank')">⬇ Get Ollama</button>`;
       let actions = '';
       if (/fetch failed|ECONNREFUSED|connect ECONNREFUSED|localhost:11434|127\.0\.0\.1:11434/i.test(m)) {
-        actions = `<div class="error-actions">
-            <button onclick="window.open('https://ollama.com/download','_blank')">⬇ Get Ollama</button>
-            <button onclick="loadModelsAndStatus(); updateStatusPill();">↻ I started it — check again</button>
-            <button onclick="retryLastQuery()">↻ Retry my question</button>
-          </div>`;
+        actions = `<div class="error-actions">${getOllama}${check}${retry}</div>`;
       } else if (/model ['"]?[\w\/.:-]+['"]? not found|model .* not installed|doesn't match a model|no model/i.test(m)) {
-        actions = `<div class="error-actions">
-            <button onclick="openSettingsModal()">⚙️ Manage installed models</button>
-            <button onclick="retryLastQuery()">↻ Retry my question</button>
-          </div>`;
+        actions = `<div class="error-actions">${settings}${retry}</div>`;
       } else if (/embedding/i.test(m)) {
-        actions = `<div class="error-actions">
-            <button onclick="loadModelsAndStatus(); updateStatusPill();">↻ Check Ollama again</button>
-            <button onclick="retryLastQuery()">↻ Retry my question</button>
-          </div>`;
-      } else {
-        actions = `<div class="error-actions"><button onclick="retryLastQuery()">↻ Retry my question</button></div>`;
+        actions = `<div class="error-actions">${check}${retry}</div>`;
+      } else if (retry) {
+        actions = `<div class="error-actions">${retry}</div>`;
       }
       return `<span style="color:#ef4444">⚠️ ${escapeHtml(text)}</span>${actions}`;
     }
@@ -1536,6 +1579,25 @@
       }
     }
 
+    // ROADMAP §1.5: explainer/FAQ modal (numbers reflect this device's state)
+    function openHelpModal() {
+      const d = lastStatusData;
+      const fill = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+      if (d && d.knowledge_base) {
+        fill('help-n-chunks', String(d.knowledge_base.total_chunks));
+        fill('help-n-docs', String(d.knowledge_base.total_documents));
+      } else {
+        fill('help-n-chunks', '0');
+        fill('help-n-docs', '0');
+      }
+      fill('help-emb', (d && d.embedding_model) ? d.embedding_model : '…');
+      fill('help-mode', (d && d.retrieval && d.retrieval.search_mode) ? (d.retrieval.search_mode === 'hybrid' ? 'hybrid — keywords + meaning' : 'meaning-only (vector)') : 'vector');
+      document.getElementById('help-modal').classList.add('active');
+    }
+    function closeHelpModal() {
+      document.getElementById('help-modal').classList.remove('active');
+    }
+
     function openSettingsModal() {
       document.getElementById('settings-modal').classList.add('active');
       const dirInput = document.getElementById('models-dir-input').value;
@@ -1797,8 +1859,8 @@
         percentEl.style.color = '#f87171';
         barEl.style.width = '100%';
         barEl.style.background = '#ef4444';
-        statusEl.innerText = `Error: ${e.message}`;
         statusEl.style.color = '#f87171';
+        statusEl.innerHTML = errorBlockHtml(e.message, false);
       } finally {
         if (buttonEl) { buttonEl.disabled = false; buttonEl.innerHTML = originalBtnText; }
         if (!hasError) {
