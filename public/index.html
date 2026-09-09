@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
   <style>
     :root {
       --bg-dark: #090d16;
@@ -733,14 +734,20 @@
       globalModels.forEach(m => {
         const item = document.createElement('div');
         item.className = 'model-delete-item';
-        item.innerHTML = `
-          <div style="display:flex; align-items:center; gap:0.5rem">
-            <span style="font-weight:600; color:white">📦 ${escapeHtml(m)}</span>
-          </div>
-          <button class="btn-danger" onclick="deleteOllamaModel('${escapeHtml(m)}')">
-            🗑️ Delete
-          </button>
-        `;
+
+        const label = document.createElement('div');
+        label.style.cssText = 'display:flex; align-items:center; gap:0.5rem';
+        label.innerHTML = `<span style="font-weight:600; color:white">📦 ${escapeHtml(m)}</span>`;
+        item.appendChild(label);
+
+        // No inline onclick with interpolated names (model names can contain
+        // quotes / special chars) — use a delegated listener instead.
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn-danger';
+        delBtn.textContent = '🗑️ Delete';
+        delBtn.addEventListener('click', () => deleteOllamaModel(m));
+        item.appendChild(delBtn);
+
         container.appendChild(item);
       });
     }
@@ -1065,7 +1072,12 @@
         });
         const data = await res.json();
 
+        // LLM output may contain HTML — render markdown, then sanitize before
+        // inserting into innerHTML (blocks script/XSS from model output).
         let htmlAnswer = marked.parse(data.answer || "No response.");
+        if (typeof DOMPurify !== 'undefined') {
+          htmlAnswer = DOMPurify.sanitize(htmlAnswer);
+        }
 
         let sourcesHtml = '';
         if (data.retrieved_sources && data.retrieved_sources.length > 0) {
@@ -1073,7 +1085,7 @@
           sourcesHtml = `
             <div class="sources-accordion">
               <button class="sources-btn" onclick="document.getElementById('${srcId}').classList.toggle('open')">
-                🔍 Retrived Knowledge Base Sources (${data.retrieved_sources.length}) ▼
+                🔍 Retrieved Knowledge Base Sources (${data.retrieved_sources.length}) ▼
               </button>
               <div id="${srcId}" class="sources-body">
                 ${data.retrieved_sources.map(s => `
@@ -1090,6 +1102,10 @@
           `;
         } else if (!useRag) {
           sourcesHtml = `<div style="margin-top:0.5rem; font-size:0.75rem; color:#9ca3af; font-style:italic">⚡ Direct raw model response (Live RAG disabled)</div>`;
+        } else if (data.rag_status === 'no_context') {
+          sourcesHtml = `<div style="margin-top:0.5rem; font-size:0.78rem; color:#fbbf24; background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.25); border-radius:8px; padding:0.5rem 0.7rem; line-height:1.4">⚠️ <strong>No relevant context found</strong> in your knowledge base for this question (below the similarity threshold). The answer above is the model responding without your documents — add matching documents and try again.</div>`;
+        } else if (data.rag_status === 'embedding_error') {
+          sourcesHtml = `<div style="margin-top:0.5rem; font-size:0.78rem; color:#f87171; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:8px; padding:0.5rem 0.7rem">⚠️ Your knowledge base could not be searched (embedding error). This answer may not use your documents.</div>`;
         }
 
         botBubble.querySelector('.message-content').innerHTML = htmlAnswer + sourcesHtml;
@@ -1101,7 +1117,12 @@
     }
 
     function escapeHtml(str) {
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     }
 
     loadModelsAndStatus();

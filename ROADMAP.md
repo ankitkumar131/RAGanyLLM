@@ -24,12 +24,12 @@
 
 These are concrete bugs in the current code that *must* be fixed before layering features on top.
 
-- [ ] **[P0 · S] Fix the similarity threshold** — `lib/server.js:515` / `lib/vector-store.js:77` pass `0.15`, which effectively admits *everything* (normalized 768-dim embeddings almost always exceed 0.15). Expose it, default ~`0.4`, and surface it in the UI.
-- [ ] **[P0 · S] Store KB & config in a user-owned location** — currently `path.resolve(process.cwd(), …)` (`config.js:4`, `vector-store.js:6`) means a global install run from a read-only folder cannot save, and two app instances in one folder corrupt each other's writes. Move to `~/.raganyllm/` (overridable via `RAGANYLLM_HOME`), keep the local file as a dev fallback.
-- [ ] **[P0 · S] Sanitize LLM output before rendering** — `marked.parse(data.answer)` is inserted via `innerHTML` (`index.html:1068`); an LLM that echoes HTML can XSS the UI. Render through DOMPurify or escape-then-parse.
-- [ ] **[P0 · S] Kill the open-door API** — bind to `127.0.0.1`, restrict `cors()` to local origins, add upload size limits, and don't expose model deletion to arbitrary pages (`DELETE /api/models/:model`).
-- [ ] **[P0 · S] Deduplicate ingestion** — hash `(source + chunk_index + content)`; re-uploading the same file must update/replace, not append (the committed seed KB already shows 3 identical duplicate chunks).
-- [ ] **[P0 · S] Don't ship fake seed data as the default KB** — remove the lorem-style "Test Progress Doc" / placeholder Angular chunks from `raganyllm-kb.json`, gitignore the file, and instead offer an optional "Load sample docs" button in the UI.
+- [x] **[P0 · S] Fix the similarity threshold** — was `0.15` (admits everything). Now configurable (`similarity_threshold`, default `0.4`, clamped 0–0.99), honored by `vector-store.search()` and `/api/query`, exposed via `GET /api/models → retrieval` + `POST /api/config`. UI shows an honest "No relevant context found" banner when the search comes up empty. *(done)*
+- [x] **[P0 · S] Store KB & config in a user-owned location** — was `process.cwd()`-relative. New `lib/paths.js` resolves `$RAGANYLLM_HOME || ~/.raganyllm` (fallback cwd); config & vector store both live there now. *(done)*
+- [x] **[P0 · S] Sanitize LLM output before rendering** — `marked.parse(...)` output now passes through DOMPurify before `innerHTML`; `escapeHtml` also escapes single quotes; model-delete buttons no longer interpolate names into inline `onclick`. *(done)*
+- [x] **[P0 · S] Kill the open-door API** — server binds `127.0.0.1` by default (`HOST` env to open up), cross-origin requests from untrusted pages are rejected 403 (origin guard replacing blanket CORS), multer caps at 25 MB × 10 files, JSON cap 25 MB, and `DELETE /api/models/:model` only deletes models Ollama actually reports installed. *(done)*
+- [x] **[P0 · S] Deduplicate ingestion** — chunks are keyed by `sha256(source|chunk_index|content)`; re-ingesting identical content is skipped (responses report `added`/`skipped`), and old duplicate rows are healed on load. *(done)*
+- [x] **[P0 · S] Don't ship fake seed data as the default KB** — `raganyllm-kb.json`/`raganyllm-config.json` removed from the repo and gitignored; KB starts empty in the user data dir. *(done; "Load sample docs" button still open in §1)*
 
 ---
 

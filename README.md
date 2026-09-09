@@ -18,6 +18,8 @@
 - 🎛️ **Live RAG Toggle**: Easily switch **"Inject Live RAG Context"** ON or OFF to compare raw base model responses vs. RAG-boosted answers.
 - ⚙️ **Settings & Model Manager**: Click the gear icon (`⚙️`) to manage installed Ollama models and delete unwanted custom models directly from storage.
 - 🔌 **Automatic Port Fallback**: Automatically switches from port `8000` ➔ `8001` if port 8000 is occupied by another process.
+- 🔒 **Local-first & Safe**: The server binds to `127.0.0.1` only and rejects state-changing requests from untrusted web pages — no more open CORS that let random websites drive your local Ollama.
+- 💾 **User Data in `~/.raganyllm`**: Your knowledge base and settings now live in `~/.raganyllm/` (or `$RAGANYLLM_HOME` if set) instead of the current folder — so a global `npm install -g` works from anywhere and two app instances can't corrupt each other's files. Duplicate document chunks are detected and skipped automatically.
 
 ---
 
@@ -132,15 +134,16 @@ To publish this project to the public npm registry:
 ## 📁 Project Structure
 
 ```text
-RAG/
+raganyllm/
 ├── bin/
 │   └── cli.js            # CLI entrypoint script
 ├── lib/
 │   ├── checker.js        # Ollama connection & model scanner
-│   ├── config.js         # Configuration manager (raganyllm-config.json)
+│   ├── config.js         # Configuration manager (~/.raganyllm/raganyllm-config.json)
 │   ├── installer.js      # Interactive prerequisite setup
+│   ├── paths.js          # User-data directory resolution (~/.raganyllm or $RAGANYLLM_HOME)
 │   ├── server.js         # Express server & API endpoints
-│   └── vector-store.js   # Local JSON vector store & chunker
+│   └── vector-store.js   # Local JSON vector store & chunker (content-deduplicated)
 ├── public/
 │   └── index.html        # Web UI (Glassmorphic UI + Progress Loaders + Modal)
 ├── README.md             # Project documentation

@@ -142,3 +142,9 @@ dist
 .svelte-kit
 
 # End of https://www.toptal.com/developers/gitignore/api/node
+
+### raganyllm ###
+# Runtime user data now lives in ~/.raganyllm (or $RAGANYLLM_HOME), never in the repo.
+# These are kept in .gitignore so they are never accidentally committed / shipped.
+raganyllm-kb.json
+raganyllm-config.json
