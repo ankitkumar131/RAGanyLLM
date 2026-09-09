@@ -555,3 +555,35 @@ test('AI-pack import reports missing base models; /api/ollama/pull proxies downl
     assert.strictEqual(badLines[badLines.length - 1].status, 'error');
   } finally { await stopApp(app); }
 });
+
+test('scheduled auto-backup snapshots a changed KB and skips an unchanged one', async () => {
+  const prevEnv = process.env.RAGANYLLM_BACKUP_MINUTES;
+  process.env.RAGANYLLM_BACKUP_MINUTES = '0.04'; // ~2.4s per tick
+  const backupsDir = path.join(HOME, 'backups');
+  const countSnaps = () => {
+    if (!fs.existsSync(backupsDir)) return 0;
+    return fs.readdirSync(backupsDir).filter((f) => f.startsWith('raganyllm-kb-')).length;
+  };
+  const before = countSnaps();
+  seedKb([[DOC('s', 'Scheduled', 'Content that should be snapshotted by the scheduler.', 'File: s.md'), EMB(0)]]);
+  const app = await startApp();
+  try {
+    // Wait (poll) until a new snapshot appears.
+    let snaps = countSnaps();
+    const deadline = Date.now() + 8000;
+    while (snaps <= before && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 200));
+      snaps = countSnaps();
+    }
+    assert.ok(snaps > before, `expected a scheduled snapshot within 8s (before=${before}, now=${snaps})`);
+
+    // KB unchanged -> no additional snapshot after another tick.
+    const afterFirst = countSnaps();
+    await new Promise((r) => setTimeout(r, 2700)); // > one 2.4s tick
+    assert.strictEqual(countSnaps(), afterFirst, 'unchanged KB must not create extra snapshots');
+  } finally {
+    if (prevEnv === undefined) delete process.env.RAGANYLLM_BACKUP_MINUTES;
+    else process.env.RAGANYLLM_BACKUP_MINUTES = prevEnv;
+    await stopApp(app);
+  }
+});

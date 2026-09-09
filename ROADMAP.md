@@ -185,7 +185,7 @@ menu-bot.raganyllm            (future: ZIP)
 
 ### 5.6 Backup & restore (P1 · M)
 - [x] **Auto-backups before destructive ops** — Clear KB and Replace-imports snapshot the previous KB first; rotating keep-last-10 in `<data-dir>/backups`. Manage-KB panel lists timestamped snapshots with one-click Restore (current state is auto-backed-up first so restores are undoable). *(done)*
-- [ ] **Scheduled auto-backups** (every N minutes while the app runs) + backup hooks for destructive re-chunk operations — still open.
+- [x] **Scheduled auto-backups** — while the app runs, the KB is snapshotted whenever its file changes (default every 30 min, `RAGANYLLM_BACKUP_MINUTES` to tune; timer is unref'd and cleared on server close). No snapshot spam: unchanged KBs are skipped. *(re-chunk destructive-op hooks remain open — no re-chunk feature exists yet)*
 - [x] **One-click "Back up to now"** snapshot button next to Export/Import KB. *(file-download backup = the existing ⬆ Export KB pack)*
 
 ---
