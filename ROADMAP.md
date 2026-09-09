@@ -184,7 +184,7 @@ Same bundle format, so a CLI-exported pack imports in the GUI and vice-versa.
 - **Export to cloud folder** (P2): watch a folder (Dropbox/Google Drive/iCloud/Obsidian) → auto-sync pack on change; import picks newest.
 
 ### 5.5 Plain export formats (P1 · S)
-- Export KB as **Markdown/JSONL/CSV** for humans ("give me my notes back"), plus a pretty HTML report (per-document, chunk counts, coverage).
+- [x] **Markdown & JSONL exports** — `GET /api/kb/export/markdown` (readable, per-document headings) and `/api/kb/export/jsonl` (one chunk per line); both available as ⬇ buttons in the KB card. *(done — CSV + pretty HTML report remain)*
 
 ### 5.6 Backup & restore (P1 · M)
 - **Auto-backups**: every N minutes or before destructive ops (clear KB, replace import, re-chunk), keep last K rotating snapshots in `~/.raganyllm/backups`; Settings → Restore with timestamp picker.
@@ -206,7 +206,7 @@ Same bundle format, so a CLI-exported pack imports in the GUI and vice-versa.
 ## 7. 🎨 UI/UX upgrades (make it feel like a product, not a demo)
 
 - [x] **[P0 · S] Chat streaming** — `/api/query` accepts `stream: true` and emits SSE events (`meta` → `token*` → `end`); the UI renders tokens live with a ⏹ Stop button and the server tolerates client disconnects. *(done — remaining from the broader chat-quality bullet: code-block copy buttons, message actions, LaTeX/tables polish)*
-- [ ] **[P1 · S] KB explorer**: list documents with chunk counts, preview/delete/update-per-doc, per-doc re-embed, tags.
+- [x] **[P1 · S] KB explorer (v1)**: document list now shows per-doc chunk counts with a 🗑️ delete button (`POST /api/kb/delete-doc`, removes all chunks of that doc, dedupe index kept in sync). *(remaining: preview/update-per-doc, per-doc re-embed, tags)*
 - [ ] **[P1 · S] Conversation sidebar**: multiple chats, rename, clear, export chat as Markdown.
 - [ ] **[P1 · S] Responsive + accessible**: keyboard nav, ARIA labels on the modal/accordions, focus traps, larger hit targets.
 - [ ] **[P2 · S] Theme + i18n**: dark/light/system; begin with EN/HI/etc. tooltip layer given the tool's audience.

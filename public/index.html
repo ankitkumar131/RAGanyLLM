@@ -586,6 +586,10 @@
           </select>
           <span style="font-size:0.7rem; color:var(--text-muted)">import mode</span>
         </div>
+        <div style="display:flex; gap:0.4rem; margin-top:0.3rem">
+          <button class="sources-btn" style="flex:1; font-size:0.7rem; padding:0.2rem 0.3rem" onclick="exportKbFormat('markdown')" title="Download the knowledge base as a readable Markdown file">⬇ Markdown</button>
+          <button class="sources-btn" style="flex:1; font-size:0.7rem; padding:0.2rem 0.3rem" onclick="exportKbFormat('jsonl')" title="Download the knowledge base as JSONL (one chunk per line)">⬇ JSONL</button>
+        </div>
         <input type="file" id="kb-pack-file" accept=".raganyllm,application/json,.json" style="display:none" onchange="importKb()">
 
         <!-- Progress Loader for Pack Import -->
@@ -767,13 +771,29 @@
 
         const kbList = document.getElementById('kb-list');
         kbList.innerHTML = '';
-        if (!data.knowledge_base.document_titles || data.knowledge_base.document_titles.length === 0) {
+        const docList = (data.knowledge_base.documents && data.knowledge_base.documents.length > 0)
+          ? data.knowledge_base.documents
+          : (data.knowledge_base.document_titles || []).map(t => ({ title: t, chunk_count: 0 }));
+        if (docList.length === 0) {
           kbList.innerHTML = `<li class="kb-item" style="color:var(--text-muted)">No documents in Knowledge Base.</li>`;
         } else {
-          data.knowledge_base.document_titles.forEach(t => {
+          docList.forEach(d => {
             const li = document.createElement('li');
             li.className = 'kb-item';
-            li.innerText = `📄 ${t}`;
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:0.5rem';
+            const label = document.createElement('span');
+            label.style.cssText = 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap';
+            label.innerHTML = `📄 ${escapeHtml(d.title)} <span style="color:var(--text-muted); font-size:0.68rem">(${d.chunk_count} chunk${d.chunk_count === 1 ? '' : 's'})</span>`;
+            const delBtn = document.createElement('button');
+            delBtn.className = 'sources-btn';
+            delBtn.textContent = '🗑️';
+            delBtn.title = `Delete '${d.title}' from the knowledge base`;
+            delBtn.style.cssText = 'font-size:0.7rem; padding:0.1rem 0.4rem; color:#f87171; flex-shrink:0';
+            delBtn.addEventListener('click', () => deleteKbDoc(d.title));
+            row.appendChild(label);
+            row.appendChild(delBtn);
+            li.appendChild(row);
             kbList.appendChild(li);
           });
         }
@@ -1275,6 +1295,55 @@
         html += `<div style="margin-top:0.5rem; font-size:0.75rem; color:var(--text-muted); font-style:italic">${statusNote}</div>`;
       }
       return html;
+    }
+
+    async function deleteKbDoc(title) {
+      if (!confirm(`Remove '${title}' and all of its chunks from the knowledge base?`)) return;
+      try {
+        const res = await fetch('/api/kb/delete-doc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ doc_title: title })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(data.message);
+        } else {
+          alert(`Could not delete: ${data.detail}`);
+        }
+      } catch (e) {
+        alert(`Could not delete: ${e.message}`);
+      }
+      await loadModelsAndStatus();
+    }
+
+    async function exportKbFormat(kind) {
+      const btn = event && event.currentTarget;
+      const original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = `<div class="spinner"></div> Exporting...`; }
+      try {
+        const endpoint = kind === 'markdown' ? '/api/kb/export/markdown' : '/api/kb/export/jsonl';
+        const res = await fetch(endpoint);
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try { detail = (await res.json()).detail || detail; } catch (e) { /* ignore */ }
+          alert(`Export failed: ${detail}`);
+          return;
+        }
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        const ext = kind === 'markdown' ? 'md' : 'jsonl';
+        a.download = `raganyllm-kb-${new Date().toISOString().slice(0, 10)}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      } catch (e) {
+        alert(`Export failed: ${e.message}`);
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+      }
     }
 
     function clearChat() {
