@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>raganyllm Studio - Universal Ollama RAG Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --bg-card: rgba(20, 27, 44, 0.75);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --accent-purple: #8b5cf6;
+      --accent-pink: #ec4899;
+      --accent-cyan: #06b6d4;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-heading: 'Outfit', sans-serif;
+      --font-code: 'Fira Code', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.18) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.15) 0px, transparent 50%);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    #app { display: flex; width: 100%; height: 100vh; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 440px;
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow-y: auto;
+      padding: 1.25rem;
+      gap: 1rem;
+    }
+
+    .brand { display: flex; align-items: center; justify-content: space-between; }
+    .brand-left { display: flex; align-items: center; gap: 0.75rem; }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.2rem;
+      color: white;
+      box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+    }
+
+    .brand-title {
+      font-family: var(--font-heading);
+      font-size: 1.3rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-subtitle { font-size: 0.75rem; color: var(--text-muted); }
+
+    .btn-icon {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 1.1rem;
+      transition: all 0.2s ease;
+    }
+    .btn-icon:hover {
+      background: rgba(139, 92, 246, 0.2);
+      border-color: var(--accent-purple);
+      transform: scale(1.05);
+    }
+
+    .status-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .status-item { display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      padding: 0.2rem 0.55rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+    }
+
+    .badge-green { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .badge-red { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .badge-purple { background: rgba(139, 92, 246, 0.15); color: #c084fc; }
+
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    .section-title {
+      font-size: 0.82rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.4rem;
+    }
+
+    .config-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .config-input-group { display: flex; gap: 0.5rem; }
+
+    .model-box {
+      display: flex; flex-direction: column; gap: 0.35rem;
+      background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color);
+      border-radius: 10px; padding: 0.75rem;
+    }
+
+    select {
+      width: 100%; background: #0f172a; border: 1px solid var(--border-color);
+      border-radius: 8px; padding: 0.55rem; color: white; font-size: 0.88rem;
+      font-family: var(--font-sans); outline: none; cursor: pointer;
+    }
+    select:focus { border-color: var(--accent-purple); }
+
+    .tabs-header {
+      display: flex; gap: 0.25rem; background: rgba(15, 23, 42, 0.5);
+      padding: 0.25rem; border-radius: 8px; border: 1px solid var(--border-color);
+    }
+
+    .tab-btn {
+      flex: 1; background: transparent; border: none; color: var(--text-muted);
+      padding: 0.4rem 0.5rem; font-size: 0.75rem; font-weight: 500;
+      border-radius: 6px; cursor: pointer; transition: all 0.15s ease;
+    }
+
+    .tab-btn.active { background: var(--accent-purple); color: white; }
+
+    .tab-content { display: none; flex-direction: column; gap: 0.65rem; margin-top: 0.5rem; }
+    .tab-content.active { display: flex; }
+
+    input[type="text"], textarea {
+      width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color);
+      border-radius: 8px; padding: 0.65rem 0.85rem; color: white;
+      font-family: var(--font-sans); font-size: 0.82rem; outline: none;
+    }
+    input[type="text"]:focus, textarea:focus { border-color: var(--accent-purple); }
+    textarea { resize: vertical; min-height: 75px; }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border-color);
+      color: var(--text-main); padding: 0.6rem; border-radius: 8px;
+      font-size: 0.82rem; font-weight: 500; cursor: pointer; transition: background 0.2s ease;
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.12); }
+    .btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--accent-purple); border: none;
+      color: white; padding: 0.6rem 0.85rem; border-radius: 8px;
+      font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: background 0.2s ease;
+      white-space: nowrap;
+    }
+    .btn-primary:hover { background: #7c3aed; }
+
+    .btn-gradient {
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+      border: none; color: white; padding: 0.65rem 0.85rem; border-radius: 8px;
+      font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: opacity 0.2s ease;
+      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    }
+    .btn-gradient:hover { opacity: 0.9; }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #f87171; padding: 0.35rem 0.65rem; border-radius: 6px;
+      font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease;
+      display: flex; align-items: center; gap: 0.3rem;
+    }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.4); color: white; }
+
+    /* RAG Ingestion Progress Bar & Loader */
+    .progress-container {
+      display: none;
+      flex-direction: column;
+      gap: 0.4rem;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      border-radius: 8px;
+      padding: 0.65rem 0.75rem;
+      margin-top: 0.35rem;
+      animation: fadeIn 0.3s ease;
+    }
+    .progress-container.active { display: flex; }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+    }
+    .progress-title { font-weight: 600; color: #a78bfa; }
+    .progress-percent { font-weight: 700; color: var(--accent-cyan); font-family: var(--font-code); }
+
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-purple), var(--accent-cyan));
+      border-radius: 4px;
+      transition: width 0.2s ease-out;
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
+    }
+    .progress-status {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .kb-box {
+      background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color);
+      border-radius: 12px; padding: 0.85rem; display: flex; flex-direction: column;
+      gap: 0.5rem; flex: 1; min-height: 110px;
+    }
+
+    .kb-list {
+      list-style: none; max-height: 100px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 0.35rem;
+    }
+    .kb-item {
+      font-size: 0.78rem; background: rgba(255, 255, 255, 0.03);
+      padding: 0.35rem 0.6rem; border-radius: 6px; color: #d1d5db;
+    }
+
+    /* Main Chat Content */
+    .main-content { flex: 1; display: flex; flex-direction: column; height: 100%; }
+
+    .chat-header {
+      padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color);
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(9, 13, 22, 0.6); backdrop-filter: blur(10px);
+    }
+
+    .chat-window {
+      flex: 1; overflow-y: auto; padding: 1.5rem; display: flex;
+      flex-direction: column; gap: 1.25rem;
+    }
+
+    .chat-bubble { display: flex; gap: 1rem; max-width: 85%; animation: fadeIn 0.3s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    .chat-bubble.user { align-self: flex-end; flex-direction: row-reverse; }
+
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%; display: flex;
+      align-items: center; justify-content: center; font-weight: 700;
+      font-size: 0.85rem; flex-shrink: 0;
+    }
+    .avatar.user { background: linear-gradient(135deg, #2563eb, #3b82f6); color: white; }
+    .avatar.assistant { background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan)); color: white; }
+
+    .message-content {
+      background: rgba(30, 41, 67, 0.6); border: 1px solid var(--border-color);
+      padding: 1rem 1.25rem; border-radius: 14px; font-size: 0.92rem;
+      line-height: 1.6; color: #e5e7eb;
+    }
+    .chat-bubble.user .message-content {
+      background: rgba(139, 92, 246, 0.25); border-color: rgba(139, 92, 246, 0.4); color: white;
+    }
+
+    .message-content code {
+      font-family: var(--font-code); background: rgba(0, 0, 0, 0.4);
+      padding: 0.15rem 0.35rem; border-radius: 4px; font-size: 0.85em; color: #f472b6;
+    }
+    .message-content pre {
+      background: #060911; border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px; padding: 0.85rem 1rem; overflow-x: auto; margin: 0.75rem 0;
+    }
+    .message-content pre code { background: transparent; padding: 0; color: #e2e8f0; }
+
+    .sources-accordion { margin-top: 0.75rem; border-top: 1px dashed rgba(255, 255, 255, 0.1); padding-top: 0.5rem; }
+    .sources-btn { background: transparent; border: none; color: #a78bfa; font-size: 0.75rem; cursor: pointer; font-weight: 500; }
+    .sources-body { display: none; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem; }
+    .sources-body.open { display: flex; }
+    .source-card { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.75rem; }
+    .source-header { display: flex; justify-content: space-between; font-weight: 600; color: #c084fc; margin-bottom: 0.25rem; }
+
+    .chat-footer { padding: 1rem 1.5rem 1.25rem 1.5rem; border-top: 1px solid var(--border-color); background: rgba(9, 13, 22, 0.6); }
+    .input-wrapper { display: flex; gap: 0.75rem; background: rgba(22, 30, 49, 0.8); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.5rem 0.75rem; }
+    .input-wrapper:focus-within { border-color: var(--accent-purple); box-shadow: 0 0 12px rgba(139, 92, 246, 0.25); }
+    .input-wrapper input { background: transparent; border: none; padding: 0.35rem; }
+
+    .btn-send {
+      background: var(--accent-purple); color: white; border: none;
+      border-radius: 8px; padding: 0.5rem 1rem; font-weight: 600;
+      font-size: 0.85rem; cursor: pointer; transition: background 0.2s ease;
+    }
+    .btn-send:hover { background: #7c3aed; }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      color: var(--text-main);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .spinner {
+      width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Modal Overlay & Card */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      animation: fadeIn 0.25s ease;
+    }
+    .modal-overlay.active { display: flex; }
+
+    .modal-content {
+      background: #0f172a;
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 600px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(15, 23, 42, 0.8);
+    }
+    .modal-title { font-family: var(--font-heading); font-size: 1.2rem; font-weight: 700; color: white; }
+
+    .modal-body {
+      padding: 1.5rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .model-delete-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(30, 41, 67, 0.5);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.65rem 0.85rem;
+      font-size: 0.85rem;
+    }
+
+    .close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .close-btn:hover { color: white; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="brand">
+        <div class="brand-left">
+          <div class="brand-icon">RAG</div>
+          <div>
+            <div class="brand-title">raganyllm</div>
+            <div class="brand-subtitle">Universal Ollama RAG Studio</div>
+          </div>
+        </div>
+        <button class="btn-icon" title="Settings & Model Manager" onclick="openSettingsModal()">⚙️</button>
+      </div>
+
+      <!-- Status Card -->
+      <div class="status-card">
+        <div class="status-item">
+          <span>Ollama Engine</span>
+          <span id="ollama-status" class="badge badge-red"><span class="dot"></span> Checking...</span>
+        </div>
+        <div class="status-item">
+          <span>Embedding Model</span>
+          <span id="emb-status" class="badge badge-purple">nomic-embed-text</span>
+        </div>
+      </div>
+
+      <!-- Custom Ollama Directory (External SSD Support) -->
+      <div class="config-card">
+        <div class="section-title" style="margin:0">Custom Ollama Models Directory</div>
+        <div style="font-size:0.73rem; color:var(--text-muted); line-height:1.3">
+          Specify directory (e.g. external SSD like <code>E:\ollama_models</code>). Saved until changed.
+        </div>
+        <div class="config-input-group">
+          <input type="text" id="models-dir-input" placeholder="e.g. E:\ollama_models or D:\Ollama">
+          <button class="btn-primary" onclick="saveModelsDirectory()">Save</button>
+        </div>
+        <div id="dir-status-text" style="font-size:0.72rem; color:#34d399; min-height:16px;"></div>
+      </div>
+
+      <!-- Active Ollama Model Dropdown -->
+      <div class="model-box">
+        <div class="section-title" style="margin:0">Select Target Ollama LLM</div>
+        <select id="model-select">
+          <option value="">Loading installed models...</option>
+        </select>
+      </div>
+
+      <!-- Ingest Custom Docs -->
+      <div>
+        <div class="section-title">Add Documents to RAG</div>
+        <div class="tabs-header">
+          <button class="tab-btn active" onclick="switchTab('file-tab')">Upload Files</button>
+          <button class="tab-btn" onclick="switchTab('url-tab')">Web URL</button>
+          <button class="tab-btn" onclick="switchTab('text-tab')">Text / MD</button>
+        </div>
+
+        <!-- Option 1: Multi-File Tab -->
+        <div id="file-tab" class="tab-content active">
+          <input type="file" id="doc-files" accept=".txt,.md,.pdf" multiple>
+          <button id="btn-ingest-files" class="btn-secondary" onclick="ingestFiles()">Upload & Ingest File(s)</button>
+          
+          <!-- Progress Loader for Option 1 -->
+          <div id="progress-files" class="progress-container">
+            <div class="progress-header">
+              <span class="progress-title">Ingesting File(s)...</span>
+              <span id="percent-files" class="progress-percent">0%</span>
+            </div>
+            <div class="progress-track">
+              <div id="bar-files" class="progress-fill"></div>
+            </div>
+            <div id="status-files" class="progress-status">Preparing document chunks...</div>
+          </div>
+        </div>
+
+        <!-- Option 2: URL Tab -->
+        <div id="url-tab" class="tab-content">
+          <input type="text" id="doc-url" placeholder="https://example.com/documentation">
+          <button id="btn-ingest-url" class="btn-secondary" onclick="ingestUrl()">Scrape & Ingest URL</button>
+
+          <!-- Progress Loader for Option 2 -->
+          <div id="progress-url" class="progress-container">
+            <div class="progress-header">
+              <span class="progress-title">Scraping & Embedding Web URL...</span>
+              <span id="percent-url" class="progress-percent">0%</span>
+            </div>
+            <div class="progress-track">
+              <div id="bar-url" class="progress-fill"></div>
+            </div>
+            <div id="status-url" class="progress-status">Fetching URL content...</div>
+          </div>
+        </div>
+
+        <!-- Option 3: Text / MD Tab -->
+        <div id="text-tab" class="tab-content">
+          <input type="text" id="doc-title" placeholder="Title (e.g. My Notes)">
+          <textarea id="doc-content" placeholder="Paste custom notes or markdown content..."></textarea>
+          <button id="btn-ingest-text" class="btn-secondary" onclick="ingestText()">Ingest Text</button>
+
+          <!-- Progress Loader for Option 3 -->
+          <div id="progress-text" class="progress-container">
+            <div class="progress-header">
+              <span class="progress-title">Embedding Text / MD...</span>
+              <span id="percent-text" class="progress-percent">0%</span>
+            </div>
+            <div class="progress-track">
+              <div id="bar-text" class="progress-fill"></div>
+            </div>
+            <div id="status-text" class="progress-status">Chunking text...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Create Standalone Ollama Model with RAG Knowledge Embedded -->
+      <div class="config-card" style="border-color: rgba(139, 92, 246, 0.3); background: rgba(30, 27, 75, 0.3);">
+        <div class="section-title" style="margin:0; color:#c084fc">Create Standalone Ollama RAG Model</div>
+        <div style="font-size:0.73rem; color:var(--text-muted); line-height:1.3">
+          Builds a standalone model inside Ollama (e.g. <code>test-ai:new</code> or <code>angular29-lfm:latest</code>) with RAG knowledge embedded!
+        </div>
+        <div style="display:flex; flex-direction:column; gap:0.4rem">
+          <input type="text" id="export-model-name" placeholder="New Model Name (e.g. test-ai:new)">
+          <button id="btn-export-model" class="btn-gradient" onclick="exportOllamaModel()">
+            🚀 Build & Create Ollama Model
+          </button>
+        </div>
+
+        <!-- Progress Loader for Standalone Model Creation -->
+        <div id="progress-export" class="progress-container">
+          <div class="progress-header">
+            <span class="progress-title" id="title-export">Building Ollama Model...</span>
+            <span id="percent-export" class="progress-percent">0%</span>
+          </div>
+          <div class="progress-track">
+            <div id="bar-export" class="progress-fill"></div>
+          </div>
+          <div id="status-export" class="progress-status">Preparing Modelfile...</div>
+        </div>
+      </div>
+
+      <!-- Knowledge Base Inspector -->
+      <div class="kb-box">
+        <div style="display:flex; justify-content:space-between; align-items:center">
+          <div class="section-title" style="margin:0">Knowledge Base</div>
+          <button class="sources-btn" style="color:#ef4444" onclick="clearKB()">Clear</button>
+        </div>
+        <div style="font-size:0.8rem; color:var(--text-muted)">
+          Total Chunks: <strong id="kb-chunks" style="color:white">0</strong> | Docs: <strong id="kb-docs" style="color:white">0</strong>
+        </div>
+        <ul id="kb-list" class="kb-list">
+          <li class="kb-item" style="color:var(--text-muted)">No documents loaded yet.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Main Chat Window -->
+    <div class="main-content">
+      <div class="chat-header">
+        <div style="display:flex; align-items:center; gap:0.75rem">
+          <div style="font-weight:600; font-family:var(--font-heading); font-size:1.1rem">
+            Interactive RAG Assistant
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:1.25rem">
+          <!-- Toggle Switch for Live RAG Search Context -->
+          <label class="toggle-label" title="Uncheck to query selected model raw without RAG context injection">
+            <input type="checkbox" id="use-rag-checkbox" checked style="accent-color:var(--accent-purple); cursor:pointer">
+            <span>Inject Live RAG Context</span>
+          </label>
+
+          <div style="font-size:0.85rem; color:var(--text-muted)">
+            Active LLM: <strong id="active-model-display" style="color:#c084fc">None Selected</strong>
+          </div>
+          <button class="btn-icon" title="Settings" onclick="openSettingsModal()">⚙️</button>
+        </div>
+      </div>
+
+      <!-- Chat Stream -->
+      <div id="chat-window" class="chat-window">
+        <div class="chat-bubble assistant">
+          <div class="avatar assistant">AI</div>
+          <div class="message-content">
+            Welcome to <strong>raganyllm Studio</strong>! 🚀<br><br>
+            1. Select any installed Ollama model from the sidebar dropdown.<br>
+            2. Upload multiple <code>.md</code>, <code>.pdf</code>, or <code>.txt</code> files, Web URLs, or Markdown text.<br>
+            3. Track exact real-time <strong>% percentage progress</strong> during RAG document ingestion.<br>
+            4. 💡 Toggle <strong>"Inject Live RAG Context"</strong> ON or OFF in the top right to compare raw model answers vs RAG answers!
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Footer -->
+      <div class="chat-footer">
+        <div class="input-wrapper">
+          <input type="text" id="query-input" placeholder="Type your question..." onkeydown="if(event.key==='Enter') sendQuery()">
+          <button id="send-btn" class="btn-send" onclick="sendQuery()">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings & Model Manager Modal -->
+  <div id="settings-modal" class="modal-overlay" onclick="if(event.target===this) closeSettingsModal()">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">⚙️ Settings & Model Manager</div>
+        <button class="close-btn" onclick="closeSettingsModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div>
+          <div class="section-title">Manage Installed Ollama Models</div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.75rem">
+            Delete unwanted or custom standalone models directly from Ollama storage.
+          </div>
+          <div id="modal-models-list" style="display:flex; flex-direction:column; gap:0.5rem">
+            <div style="color:var(--text-muted); font-size:0.85rem">Loading installed models...</div>
+          </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border-color); padding-top:1rem">
+          <div class="section-title">External SSD / Custom Storage Directory</div>
+          <div class="config-input-group" style="margin-top:0.5rem">
+            <input type="text" id="modal-dir-input" placeholder="e.g. E:\ollama_models">
+            <button class="btn-primary" onclick="saveModalModelsDirectory()">Save Path</button>
+          </div>
+          <div id="modal-dir-status" style="font-size:0.75rem; color:#34d399; margin-top:0.35rem"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let globalModels = [];
+
+    async function loadModelsAndStatus() {
+      try {
+        const res = await fetch('/api/models');
+        const data = await res.json();
+        globalModels = data.models || [];
+
+        const ollamaBadge = document.getElementById('ollama-status');
+        if (data.connected) {
+          ollamaBadge.className = 'badge badge-green';
+          ollamaBadge.innerHTML = `<span class="dot"></span> Connected`;
+        } else {
+          ollamaBadge.className = 'badge badge-red';
+          ollamaBadge.innerHTML = `<span class="dot"></span> Offline`;
+        }
+
+        const select = document.getElementById('model-select');
+        const currentVal = select.value;
+        select.innerHTML = '';
+
+        if (globalModels.length > 0) {
+          globalModels.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            opt.innerText = m;
+            select.appendChild(opt);
+          });
+          if (currentVal && globalModels.includes(currentVal)) {
+            select.value = currentVal;
+          }
+        } else {
+          select.innerHTML = `<option value="">No Ollama models found</option>`;
+        }
+
+        document.getElementById('active-model-display').innerText = select.value || 'None';
+
+        const dirInput = document.getElementById('models-dir-input');
+        if (document.activeElement !== dirInput && data.ollama_models_dir) {
+          dirInput.value = data.ollama_models_dir;
+          document.getElementById('dir-status-text').innerText = `Saved Path: ${data.ollama_models_dir}`;
+        }
+
+        document.getElementById('kb-chunks').innerText = data.knowledge_base.total_chunks;
+        document.getElementById('kb-docs').innerText = data.knowledge_base.total_documents;
+
+        const kbList = document.getElementById('kb-list');
+        kbList.innerHTML = '';
+        if (!data.knowledge_base.document_titles || data.knowledge_base.document_titles.length === 0) {
+          kbList.innerHTML = `<li class="kb-item" style="color:var(--text-muted)">No documents in Knowledge Base.</li>`;
+        } else {
+          data.knowledge_base.document_titles.forEach(t => {
+            const li = document.createElement('li');
+            li.className = 'kb-item';
+            li.innerText = `📄 ${t}`;
+            kbList.appendChild(li);
+          });
+        }
+
+        renderModalModelsList();
+      } catch (e) {
+        console.error("Error loading status:", e);
+      }
+    }
+
+    function renderModalModelsList() {
+      const container = document.getElementById('modal-models-list');
+      container.innerHTML = '';
+
+      if (globalModels.length === 0) {
+        container.innerHTML = `<div style="color:var(--text-muted); font-size:0.85rem">No models found in Ollama.</div>`;
+        return;
+      }
+
+      globalModels.forEach(m => {
+        const item = document.createElement('div');
+        item.className = 'model-delete-item';
+        item.innerHTML = `
+          <div style="display:flex; align-items:center; gap:0.5rem">
+            <span style="font-weight:600; color:white">📦 ${escapeHtml(m)}</span>
+          </div>
+          <button class="btn-danger" onclick="deleteOllamaModel('${escapeHtml(m)}')">
+            🗑️ Delete
+          </button>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    async function deleteOllamaModel(modelName) {
+      if (!confirm(`Are you sure you want to permanently delete Ollama model '${modelName}'?`)) return;
+
+      try {
+        const res = await fetch(`/api/models/${encodeURIComponent(modelName)}`, {
+          method: 'DELETE'
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(data.message);
+          await loadModelsAndStatus();
+        } else {
+          alert(`Failed to delete model: ${data.detail}`);
+        }
+      } catch (e) {
+        alert(`Error deleting model: ${e.message}`);
+      }
+    }
+
+    function openSettingsModal() {
+      document.getElementById('settings-modal').classList.add('active');
+      const dirInput = document.getElementById('models-dir-input').value;
+      document.getElementById('modal-dir-input').value = dirInput;
+      renderModalModelsList();
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settings-modal').classList.remove('active');
+    }
+
+    async function saveModalModelsDirectory() {
+      const dirPath = document.getElementById('modal-dir-input').value.trim();
+      const statusText = document.getElementById('modal-dir-status');
+
+      statusText.innerText = 'Saving...';
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ollama_models_dir: dirPath })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          statusText.innerText = `✔ Directory saved successfully!`;
+          await loadModelsAndStatus();
+        } else {
+          statusText.innerText = `Error: ${data.detail}`;
+        }
+      } catch (e) {
+        statusText.innerText = `Error: ${e.message}`;
+      }
+    }
+
+    async function saveModelsDirectory() {
+      const dirInput = document.getElementById('models-dir-input');
+      const dirPath = dirInput.value.trim();
+      const statusText = document.getElementById('dir-status-text');
+
+      statusText.style.color = '#a78bfa';
+      statusText.innerText = 'Saving directory setting...';
+
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ollama_models_dir: dirPath })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          statusText.style.color = '#34d399';
+          statusText.innerText = `✔ Directory saved & scanned! (${data.models ? data.models.length : 0} models detected)`;
+          await loadModelsAndStatus();
+        } else {
+          statusText.style.color = '#f87171';
+          statusText.innerText = `Error: ${data.detail || 'Failed to save path'}`;
+        }
+      } catch (e) {
+        statusText.style.color = '#f87171';
+        statusText.innerText = `Error: ${e.message}`;
+      }
+    }
+
+    document.getElementById('model-select').addEventListener('change', (e) => {
+      document.getElementById('active-model-display').innerText = e.target.value;
+    });
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    }
+
+    async function executeIngestStream(endpoint, fetchOptions, progressContainerId, percentId, barId, statusId, buttonEl) {
+      const progressContainer = document.getElementById(progressContainerId);
+      const percentEl = document.getElementById(percentId);
+      const barEl = document.getElementById(barId);
+      const statusEl = document.getElementById(statusId);
+
+      progressContainer.classList.add('active');
+      percentEl.innerText = '0%';
+      barEl.style.width = '0%';
+      barEl.style.background = 'linear-gradient(90deg, var(--accent-purple), var(--accent-cyan))';
+      statusEl.innerText = 'Processing...';
+      statusEl.style.color = 'var(--text-muted)';
+
+      const originalBtnText = buttonEl.innerHTML;
+      buttonEl.disabled = true;
+      buttonEl.innerHTML = `<div class="spinner"></div> Processing...`;
+
+      let hasError = false;
+
+      try {
+        const response = await fetch(endpoint, fetchOptions);
+        if (!response.body) {
+          throw new Error("ReadableStream not supported by browser.");
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const data = JSON.parse(line);
+              if (data.status === 'progress') {
+                const pct = data.percent || 0;
+                percentEl.innerText = `${pct}%`;
+                barEl.style.width = `${pct}%`;
+                statusEl.innerText = data.stage || 'Processing...';
+              } else if (data.status === 'complete') {
+                percentEl.innerText = '100%';
+                barEl.style.width = '100%';
+                statusEl.innerText = data.message || 'Complete!';
+                await loadModelsAndStatus();
+              } else if (data.status === 'error') {
+                hasError = true;
+                throw new Error(data.detail || 'Execution error');
+              }
+            } catch (err) {
+              if (err.message.startsWith('Execution error') || err.message.includes('Ollama API error')) {
+                throw err;
+              }
+              console.warn("Stream line parse warning:", err.message);
+            }
+          }
+        }
+      } catch (e) {
+        hasError = true;
+        percentEl.innerText = 'Error';
+        percentEl.style.color = '#f87171';
+        barEl.style.width = '100%';
+        barEl.style.background = '#ef4444';
+        statusEl.innerText = `Error: ${e.message}`;
+        statusEl.style.color = '#f87171';
+      } finally {
+        buttonEl.disabled = false;
+        buttonEl.innerHTML = originalBtnText;
+        if (!hasError) {
+          setTimeout(() => {
+            progressContainer.classList.remove('active');
+          }, 8000);
+        }
+      }
+    }
+
+    async function ingestFiles() {
+      const input = document.getElementById('doc-files');
+      if (!input.files || input.files.length === 0) return alert("Please select one or more files (.txt, .md, .pdf).");
+
+      const formData = new FormData();
+      for (let i = 0; i < input.files.length; i++) {
+        formData.append('files', input.files[i]);
+      }
+
+      const btn = document.getElementById('btn-ingest-files');
+      await executeIngestStream(
+        '/api/ingest-files',
+        { method: 'POST', body: formData },
+        'progress-files', 'percent-files', 'bar-files', 'status-files',
+        btn
+      );
+      input.value = '';
+    }
+
+    async function ingestUrl() {
+      const urlInput = document.getElementById('doc-url');
+      const url = urlInput.value.trim();
+      if (!url) return alert("Please enter a valid Web URL.");
+
+      const btn = document.getElementById('btn-ingest-url');
+      await executeIngestStream(
+        '/api/ingest-url',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        },
+        'progress-url', 'percent-url', 'bar-url', 'status-url',
+        btn
+      );
+      urlInput.value = '';
+    }
+
+    async function ingestText() {
+      const titleInput = document.getElementById('doc-title');
+      const contentInput = document.getElementById('doc-content');
+      const title = titleInput.value.trim();
+      const content = contentInput.value.trim();
+      if (!content) return alert("Content cannot be empty.");
+
+      const btn = document.getElementById('btn-ingest-text');
+      await executeIngestStream(
+        '/api/ingest-text',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, content })
+        },
+        'progress-text', 'percent-text', 'bar-text', 'status-text',
+        btn
+      );
+      titleInput.value = '';
+      contentInput.value = '';
+    }
+
+    async function exportOllamaModel() {
+      const baseModelSelect = document.getElementById('model-select');
+      const baseModel = baseModelSelect ? baseModelSelect.value : '';
+
+      if (!baseModel) {
+        return alert("⚠️ Please select a base target Ollama LLM from the top dropdown first (e.g. llama3:latest or liquidAI/lfm2.5-1.2b-instruct:latest).");
+      }
+
+      const nameInput = document.getElementById('export-model-name');
+      const newModelName = nameInput.value.trim();
+      if (!newModelName) {
+        return alert("⚠️ Please enter a new model name (e.g. test-ai:new or angular29-lfm:latest).");
+      }
+
+      const btn = document.getElementById('btn-export-model');
+
+      await executeIngestStream(
+        '/api/export-ollama-model',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            base_model: baseModel,
+            new_model_name: newModelName
+          })
+        },
+        'progress-export', 'percent-export', 'bar-export', 'status-export',
+        btn
+      );
+
+      nameInput.value = '';
+    }
+
+    async function clearKB() {
+      if (!confirm("Are you sure you want to clear the entire Knowledge Base?")) return;
+      await fetch('/api/clear-kb', { method: 'POST' });
+      loadModelsAndStatus();
+    }
+
+    async function sendQuery() {
+      const input = document.getElementById('query-input');
+      const query = input.value.trim();
+      if (!query) return;
+
+      const model = document.getElementById('model-select').value;
+      if (!model) return alert("Please select an Ollama model from the dropdown first.");
+
+      const useRag = document.getElementById('use-rag-checkbox').checked;
+
+      input.value = '';
+
+      const chatWindow = document.getElementById('chat-window');
+
+      // User Bubble
+      const userBubble = document.createElement('div');
+      userBubble.className = 'chat-bubble user';
+      userBubble.innerHTML = `
+        <div class="avatar user">You</div>
+        <div class="message-content">${escapeHtml(query)}</div>
+      `;
+      chatWindow.appendChild(userBubble);
+
+      // Bot Placeholder
+      const botBubble = document.createElement('div');
+      botBubble.className = 'chat-bubble assistant';
+      const statusText = useRag ? `Performing vector search & generating answer with ${model}...` : `Querying raw model ${model} (Live RAG disabled)...`;
+      botBubble.innerHTML = `
+        <div class="avatar assistant">AI</div>
+        <div class="message-content">
+          <div style="display:flex; align-items:center; gap:0.5rem; color:var(--text-muted)">
+            <div class="spinner"></div> ${statusText}
+          </div>
+        </div>
+      `;
+      chatWindow.appendChild(botBubble);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+
+      try {
+        const res = await fetch('/api/query', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ query, model, use_rag: useRag })
+        });
+        const data = await res.json();
+
+        let htmlAnswer = marked.parse(data.answer || "No response.");
+
+        let sourcesHtml = '';
+        if (data.retrieved_sources && data.retrieved_sources.length > 0) {
+          const srcId = 'src-' + Math.random().toString(36).substr(2, 9);
+          sourcesHtml = `
+            <div class="sources-accordion">
+              <button class="sources-btn" onclick="document.getElementById('${srcId}').classList.toggle('open')">
+                🔍 Retrived Knowledge Base Sources (${data.retrieved_sources.length}) ▼
+              </button>
+              <div id="${srcId}" class="sources-body">
+                ${data.retrieved_sources.map(s => `
+                  <div class="source-card">
+                    <div class="source-header">
+                      <span>📄 ${escapeHtml(s.doc_title)}</span>
+                      <span>Match: ${Math.round(s.similarity_score * 100)}%</span>
+                    </div>
+                    <div style="color:#9ca3af">${escapeHtml(s.content)}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        } else if (!useRag) {
+          sourcesHtml = `<div style="margin-top:0.5rem; font-size:0.75rem; color:#9ca3af; font-style:italic">⚡ Direct raw model response (Live RAG disabled)</div>`;
+        }
+
+        botBubble.querySelector('.message-content').innerHTML = htmlAnswer + sourcesHtml;
+      } catch (e) {
+        botBubble.querySelector('.message-content').innerHTML = `<span style="color:#ef4444">Error: ${e.message}</span>`;
+      } finally {
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+      }
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    loadModelsAndStatus();
+    setInterval(loadModelsAndStatus, 15000);
+  </script>
+</body>
+</html>

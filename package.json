@@ -1,0 +1,39 @@
+{
+  "name": "raganyllm",
+  "version": "1.0.0",
+  "description": "Universal local RAG Studio CLI for any Ollama LLM with interactive setup, external SSD support, and real-time streaming progress",
+  "main": "lib/server.js",
+  "bin": {
+    "raganyllm": "./bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "public"
+  ],
+  "preferGlobal": true,
+  "scripts": {
+    "start": "node bin/cli.js"
+  },
+  "keywords": [
+    "ollama",
+    "rag",
+    "llm",
+    "vector-search",
+    "cli",
+    "embeddings",
+    "external-ssd"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "inquirer": "^8.2.6",
+    "multer": "^1.4.5-lts.1",
+    "node-fetch": "^2.7.0",
+    "open": "^8.4.2",
+    "pdf-parse": "^1.1.1"
+  }
+}

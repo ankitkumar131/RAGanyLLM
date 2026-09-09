@@ -1,0 +1,5 @@
+{
+  "ollama_models_dir": "",
+  "ollama_url": "http://localhost:11434",
+  "embedding_model": "nomic-embed-text"
+}

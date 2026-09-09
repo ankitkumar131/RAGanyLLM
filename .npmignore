@@ -1,0 +1,6 @@
+node_modules/
+raganyllm-kb.json
+raganyllm-config.json
+scratch/
+.git/
+.DS_Store
