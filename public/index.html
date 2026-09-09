@@ -595,6 +595,10 @@
           <button class="sources-btn" style="flex:1; font-size:0.7rem; padding:0.2rem 0.3rem" onclick="exportKbFormat('jsonl')" title="Download the knowledge base as JSONL (one chunk per line)">⬇ JSONL</button>
         </div>
         <input type="file" id="kb-pack-file" accept=".raganyllm,application/json,.json" style="display:none" onchange="importKb()">
+        <div style="display:flex; gap:0.4rem; margin-top:0.35rem">
+          <input type="password" id="export-password" placeholder="🔒 Password-protect export (optional)" autocomplete="new-password" style="flex:1; min-width:0; font-size:0.72rem; padding:0.3rem 0.45rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px">
+          <input type="password" id="import-password" placeholder="Pack password, if protected" autocomplete="new-password" style="flex:1; min-width:0; font-size:0.72rem; padding:0.3rem 0.45rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px">
+        </div>
 
         <!-- Progress Loader for Pack Import -->
         <div id="progress-pack" class="progress-container">
@@ -1308,7 +1312,13 @@
       btn.disabled = true;
       btn.innerHTML = `<div class="spinner"></div> Exporting...`;
       try {
-        const res = await fetch('/api/kb/export');
+        const pwdInput = document.getElementById('export-password');
+        const password = pwdInput ? pwdInput.value : '';
+        const res = await fetch('/api/kb/export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
         if (!res.ok) {
           let detail = `HTTP ${res.status}`;
           try { detail = (await res.json()).detail || detail; } catch (e) { /* ignore */ }
@@ -1345,6 +1355,9 @@
       const formData = new FormData();
       formData.append('pack', file);
       formData.append('mode', mode);
+      const pwdInput = document.getElementById('import-password');
+      const password = pwdInput ? pwdInput.value : '';
+      if (password) formData.append('password', password);
 
       const btn = document.getElementById('btn-import-kb');
       await executeIngestStream(

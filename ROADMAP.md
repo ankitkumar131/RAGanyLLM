@@ -162,13 +162,13 @@ menu-bot.raganyllm            (future: ZIP)
 - [ ] **Two export flavors** in the UI:
   - **💾 Knowledge Pack** — documents + chunks + settings (embeddings optional). Small, human-readable, re-embeds on import. *(shipped as compact option)*
   - **🤖 AI Pack** — Knowledge Pack + the custom-AI cards/Modelfiles so the recipient gets your finished assistant, not just raw knowledge.
-- [ ] **Encrypt option** (password → AES-GCM): a noob's docs are often private — one checkbox, one password, done.
+- [x] **Encrypt option** — optional password protection on pack export (AES-256-GCM + scrypt key derivation, `raganyllm-pack-enc` wrapper, no plaintext leak in the file). Import detects the wrapper and asks for the password; wrong password / tampered file produces a friendly error and changes nothing. *(done — UI: 🔒 password inputs beside Export/Import KB)*
 
 ### 5.2 One-click flows everywhere (P0 · S)
 - [x] **Export & Import buttons in the Knowledge Base card** — one-click download of `raganyllm-kb-YYYY-MM-DD.raganyllm` and pick-a-file import with live progress bar. *(done)*
 - [ ] Header toolbar: **⬇ Import** and **⬆ Export** buttons; drag & drop the `.raganyllm` file anywhere in the UI.
 - [x] **Import mode picker (Merge / Replace)** — merge dedupes by content hash; replace warns first. *(done)*
-- [x] **Validation on import** — schema/version check, per-chunk content validation, all-or-nothing (nothing changes if any chunk is invalid); friendly plain-language errors. *(done)*
+- [x] **Validation on import** — schema/version check, per-chunk content validation, all-or-nothing (nothing changes if any chunk is invalid); friendly plain-language errors. *(done — incl. encrypted-pack password prompt)*
 - [ ] **Preview card** before import ("Contains: 3 documents · 412 chunks · 1 AI 'menu-bot'") + auto-backup of the current KB before a replace.
 - [ ] **Post-import wizard**: if the embedding model or base model is missing on this device → "This pack needs a small helper — download now?" with progress. Then: "🎉 Imported! Try asking: …".
 

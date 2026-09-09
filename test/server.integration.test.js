@@ -287,6 +287,54 @@ test('pack export -> clear -> import merge restores KB; duplicate re-import skip
   } finally { await stopApp(app); }
 });
 
+test('encrypted pack: export with password, import with right/wrong password', async () => {
+  seedKb([[DOC('a', 'Secret Notes', 'My private vault combination is 7-3-9-1.', 'File: Secret Notes.md'), EMB(0)]]);
+  const app = await startApp();
+  try {
+    // Export with password via POST.
+    const exp = await fetch(`http://127.0.0.1:${app.port}/api/kb/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: 'hunter2' })
+    });
+    const enc = await exp.json();
+    assert.strictEqual(enc.format, 'raganyllm-pack-enc');
+    assert.ok(enc.ciphertext.length > 100);
+    assert.ok(!JSON.stringify(enc).includes('vault'), 'plaintext must not leak into the wrapper');
+
+    // Clear, then import with the WRONG password -> friendly error, KB stays empty.
+    await reqJson(app.port, 'POST', '/api/clear-kb', {});
+    const fdBad = new FormData();
+    fdBad.append('pack', new Blob([JSON.stringify(enc)], { type: 'application/json' }), 'secret.raganyllm');
+    fdBad.append('mode', 'merge');
+    fdBad.append('password', 'wrong');
+    const impBad = await fetch(`http://127.0.0.1:${app.port}/api/kb/import`, { method: 'POST', body: fdBad });
+    const linesBad = (await impBad.text()).trim().split('\n').map((l) => JSON.parse(l));
+    assert.strictEqual(linesBad[linesBad.length - 1].status, 'error');
+    assert.match(linesBad[linesBad.length - 1].detail, /password is incorrect|Could not open/);
+
+    // Import with the CORRECT password -> success.
+    const fdGood = new FormData();
+    fdGood.append('pack', new Blob([JSON.stringify(enc)], { type: 'application/json' }), 'secret.raganyllm');
+    fdGood.append('mode', 'merge');
+    fdGood.append('password', 'hunter2');
+    const impGood = await fetch(`http://127.0.0.1:${app.port}/api/kb/import`, { method: 'POST', body: fdGood });
+    const linesGood = (await impGood.text()).trim().split('\n').map((l) => JSON.parse(l));
+    assert.strictEqual(linesGood[linesGood.length - 1].status, 'complete');
+    const m = await (await fetch(`http://127.0.0.1:${app.port}/api/models`)).json();
+    assert.strictEqual(m.knowledge_base.total_chunks, 1);
+
+    // Import encrypted pack WITHOUT password -> clear message asking for it.
+    await reqJson(app.port, 'POST', '/api/clear-kb', {});
+    const fdNone = new FormData();
+    fdNone.append('pack', new Blob([JSON.stringify(enc)], { type: 'application/json' }), 'secret.raganyllm');
+    fdNone.append('mode', 'merge');
+    const impNone = await fetch(`http://127.0.0.1:${app.port}/api/kb/import`, { method: 'POST', body: fdNone });
+    const linesNone = (await impNone.text()).trim().split('\n').map((l) => JSON.parse(l));
+    assert.match(linesNone[linesNone.length - 1].detail, /password-protected/);
+  } finally { await stopApp(app); }
+});
+
 test('delete-doc, plain exports and samples endpoints', async () => {
   seedKb([[DOC('a', 'Doc A', 'Some content for doc a.'), EMB(0)]]);
   const app = await startApp();
