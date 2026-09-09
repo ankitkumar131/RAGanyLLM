@@ -12,6 +12,7 @@ process.env.RAGANYLLM_HOME = HOME;
 process.env.RAGANYLLM_QUIET = '1';
 
 const { createServer } = require('../lib/server');
+const { decodeExportBody } = require('./pack-helper');
 
 
 // ---------------------------------------------------------------- fake Ollama
@@ -259,18 +260,25 @@ test('pack export -> clear -> import merge restores KB; duplicate re-import skip
   const app = await startApp();
   try {
     const exp = await fetch(`http://127.0.0.1:${app.port}/api/kb/export`);
-    const pack = await exp.json();
+    const { pack, bytes } = await decodeExportBody(exp);
     assert.strictEqual(pack.format, 'raganyllm-pack');
+    assert.strictEqual(pack.container, 'zip-v2', 'default export is the v2 ZIP container');
     assert.strictEqual(pack.knowledge.chunks.length, 3);
     assert.ok(pack.knowledge.embeddings.length === 3);
+
+    // zip=0 still yields the legacy v1 JSON container (backward compatible).
+    const expV1 = await fetch(`http://127.0.0.1:${app.port}/api/kb/export?zip=0`);
+    const v1 = await expV1.json();
+    assert.strictEqual(v1.version, 1);
+    assert.strictEqual(v1.container, undefined);
 
     await reqJson(app.port, 'POST', '/api/clear-kb', {});
     let m = await (await fetch(`http://127.0.0.1:${app.port}/api/models`)).json();
     assert.strictEqual(m.knowledge_base.total_chunks, 0);
 
-    // Import merge (NDJSON stream).
+    // Import the v2 ZIP bytes (NDJSON stream).
     const fd = new FormData();
-    fd.append('pack', new Blob([JSON.stringify(pack)], { type: 'application/json' }), 'kb.raganyllm');
+    fd.append('pack', new Blob([bytes], { type: 'application/octet-stream' }), 'kb.raganyllm');
     fd.append('mode', 'merge');
     const imp = await fetch(`http://127.0.0.1:${app.port}/api/kb/import`, { method: 'POST', body: fd });
     const lines = (await imp.text()).trim().split('\n').map((l) => JSON.parse(l));
@@ -280,9 +288,9 @@ test('pack export -> clear -> import merge restores KB; duplicate re-import skip
     m = await (await fetch(`http://127.0.0.1:${app.port}/api/models`)).json();
     assert.strictEqual(m.knowledge_base.total_chunks, 3);
 
-    // Duplicate re-import merge -> 0 added.
+    // Duplicate re-import merge -> 0 added (same v2 ZIP bytes).
     const fd2 = new FormData();
-    fd2.append('pack', new Blob([JSON.stringify(pack)], { type: 'application/json' }), 'kb.raganyllm');
+    fd2.append('pack', new Blob([bytes], { type: 'application/octet-stream' }), 'kb.raganyllm');
     fd2.append('mode', 'merge');
     const imp2 = await fetch(`http://127.0.0.1:${app.port}/api/kb/import`, { method: 'POST', body: fd2 });
     const lines2 = (await imp2.text()).trim().split('\n').map((l) => JSON.parse(l));
@@ -310,6 +318,7 @@ test('encrypted pack: export with password, import with right/wrong password', a
     });
     const enc = await exp.json();
     assert.strictEqual(enc.format, 'raganyllm-pack-enc');
+    assert.strictEqual(enc.container, 'zip-v2', 'password-protected export encrypts the ZIP container');
     assert.ok(enc.ciphertext.length > 100);
     assert.ok(!JSON.stringify(enc).includes('vault'), 'plaintext must not leak into the wrapper');
 
@@ -460,11 +469,12 @@ test('pack preview endpoint: summaries without mutating the KB (incl. encrypted)
   seedKb([[DOC('a', 'Doc', 'Some factual knowledge about dragons for retrieval.', 'File: Doc.md'), EMB(0)]]);
   const app = await startApp();
   try {
-    // Plain pack preview.
+    // Plain pack preview (v2 ZIP export).
     const exp = await fetch(`http://127.0.0.1:${app.port}/api/kb/export`, { method: 'POST' });
-    const pack = await exp.json();
+    const { pack, bytes } = await decodeExportBody(exp);
+    assert.strictEqual(pack.container, 'zip-v2');
     const fd = new FormData();
-    fd.append('pack', new Blob([JSON.stringify(pack)], { type: 'application/json' }), 'p.raganyllm');
+    fd.append('pack', new Blob([bytes], { type: 'application/octet-stream' }), 'p.raganyllm');
     const prev = await fetch(`http://127.0.0.1:${app.port}/api/kb/preview`, { method: 'POST', body: fd });
     const d = await prev.json();
     assert.strictEqual(d.ok, true);
@@ -504,7 +514,7 @@ test('pack preview endpoint: summaries without mutating the KB (incl. encrypted)
     // Preview never mutates the KB (clear first, preview a 1-chunk pack, KB stays empty).
     await reqJson(app.port, 'POST', '/api/clear-kb', {});
     const fd2 = new FormData();
-    fd2.append('pack', new Blob([JSON.stringify(pack)], { type: 'application/json' }), 'p.raganyllm');
+    fd2.append('pack', new Blob([bytes], { type: 'application/octet-stream' }), 'p.raganyllm');
     await fetch(`http://127.0.0.1:${app.port}/api/kb/preview`, { method: 'POST', body: fd2 });
     const m = await (await fetch(`http://127.0.0.1:${app.port}/api/models`)).json();
     assert.strictEqual(m.knowledge_base.total_chunks, 0, 'preview must not import');

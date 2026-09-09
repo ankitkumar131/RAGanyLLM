@@ -143,7 +143,7 @@ Today `POST /api/export-ollama-model` just bakes the whole KB into a giant syste
 
 ### 5.1 The portable bundle format — `.raganyllm` pack (P0 · M)
 - [x] **v1 format shipped** *(single versioned JSON file — ZIP container deferred)*: `{ format: 'raganyllm-pack', version: 1, kind: 'knowledge', created_at, stats, settings.embedding_model, knowledge: { chunks[]: {id, doc_title, content, source, chunk_index}, embeddings?[] } }`. Default exports **include embeddings** (instant, offline import); `?embeddings=0` / compact export stores text only and re-learns on import. *(done — implemented 2026-09-09)*
-- [ ] Upgrade container to the full ZIP layout below (manifest w/ sha-256 checksums, separate `documents.jsonl`/`chunks.jsonl`/`settings.json`, safe-path validation) so packs can grow to large document sets and support the AI-pack extension.
+- [x] **ZIP container (v2)** — exports are now real ZIP files (deflated, `adm-zip`): `manifest.json` (schema, kind, counts, **per-entry sha-256 checksums**), `knowledge/chunks.jsonl`, `knowledge/embeddings.jsonl` (aligned rows), `settings.json` and `ai/model-card.json`. Imports verify checksums, reject anything outside the fixed entry allowlist (no zip-slip), and auto-detect every legacy form — v1 JSON, encrypted v1, and encrypted v2 (AES-GCM over the ZIP bytes). Legacy export stays available via `zip=0` / `{zip:false}`. *(done — `documents.jsonl` for full original docs comes with the §3 original-documents work)*
 
 ```
 menu-bot.raganyllm            (future: ZIP)

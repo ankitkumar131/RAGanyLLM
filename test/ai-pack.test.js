@@ -16,6 +16,7 @@ process.env.RAGANYLLM_QUIET = '1';
 
 const { createServer } = require('../lib/server');
 const { AI_FILE } = require('../lib/ai-registry');
+const { decodeExportBody } = require('./pack-helper');
 
 const ollamaState = { createCalls: [] };
 
@@ -127,17 +128,18 @@ test('AI pack round trip: build -> registry -> export kind=ai -> fresh-device im
     assert.strictEqual(rec.custom_instructions, 'Answer only about coffee.');
     assert.strictEqual(rec.kb.documents, 2);
 
-    // Export an AI pack.
+    // Export an AI pack (v2 ZIP container).
     const exp = await fetch(`http://127.0.0.1:${appA.port}/api/kb/export?kind=ai`, { method: 'POST' });
-    const pack = await exp.json();
+    const { pack, bytes } = await decodeExportBody(exp);
     assert.strictEqual(pack.format, 'raganyllm-pack');
+    assert.strictEqual(pack.container, 'zip-v2');
     assert.strictEqual(pack.kind, 'ai');
     assert.strictEqual(pack.knowledge.chunks.length, 2);
     assert.ok(Array.isArray(pack.ai.models) && pack.ai.models.length >= 1);
     assert.strictEqual(pack.ai.models.find((m) => m.name === 'barista-master:latest').custom_instructions, 'Answer only about coffee.');
     // Knowledge-kind exports stay AI-free (backward compatible).
     const expK = await fetch(`http://127.0.0.1:${appA.port}/api/kb/export`, { method: 'POST' });
-    const packK = await expK.json();
+    const { pack: packK } = await decodeExportBody(expK);
     assert.strictEqual(packK.kind, 'knowledge');
     assert.ok(packK.ai === undefined, 'knowledge packs carry no AI section');
 
@@ -150,7 +152,7 @@ test('AI pack round trip: build -> registry -> export kind=ai -> fresh-device im
 
     // Import the AI pack on device B (same store, now empty): KB + AI defs land.
     const fd = new FormData();
-    fd.append('pack', new Blob([JSON.stringify(pack)], { type: 'application/json' }), 'barista.raganyllm');
+    fd.append('pack', new Blob([bytes], { type: 'application/octet-stream' }), 'barista.raganyllm');
     fd.append('mode', 'merge');
     const imp = await fetch(`http://127.0.0.1:${appA.port}/api/kb/import`, { method: 'POST', body: fd });
     const lines = (await imp.text()).trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
@@ -165,7 +167,7 @@ test('AI pack round trip: build -> registry -> export kind=ai -> fresh-device im
 
     // Importing the same pack again: chunks AND AI defs are deduped.
     const fd2 = new FormData();
-    fd2.append('pack', new Blob([JSON.stringify(pack)], { type: 'application/json' }), 'barista.raganyllm');
+    fd2.append('pack', new Blob([bytes], { type: 'application/octet-stream' }), 'barista.raganyllm');
     fd2.append('mode', 'merge');
     const imp2 = await fetch(`http://127.0.0.1:${appA.port}/api/kb/import`, { method: 'POST', body: fd2 });
     const lines2 = (await imp2.text()).trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));

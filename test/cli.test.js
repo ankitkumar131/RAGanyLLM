@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { readPackFile } = require('./pack-helper');
 
 const ROOT = path.resolve(__dirname, '..');
 const CLI = path.join(ROOT, 'bin', 'cli.js');
@@ -56,9 +57,9 @@ test('cli export writes a portable pack with stats and embeddings', () => {
   const out = path.join(home, 'pack.raganyllm');
   const stdout = runCli(['export', out], home);
   assert.match(stdout, /Exported 2 document\(s\) \/ 2 chunk\(s\) with embeddings/);
-  const pack = JSON.parse(fs.readFileSync(out, 'utf-8'));
+  const pack = readPackFile(out);
   assert.strictEqual(pack.format, 'raganyllm-pack');
-  assert.strictEqual(pack.version, 1);
+  assert.strictEqual(pack.container, 'zip-v2', 'CLI export uses the v2 ZIP container');
   assert.strictEqual(pack.knowledge.chunks.length, 2);
   assert.strictEqual(pack.knowledge.embeddings.length, 2);
   assert.strictEqual(pack.stats.total_chunks, 2);
@@ -80,7 +81,7 @@ test('cli export --no-embeddings makes a compact pack; import merges and dedupes
   seedKb(homeA, [[DOC('1', 'Vintage teaware', 'Vintage teapots and porcelain handles.', 'File: v.md'), EMB(0)]]);
   const out = path.join(homeA, 'compact.raganyllm');
   runCli(['export', out, '--no-embeddings'], homeA);
-  const pack = JSON.parse(fs.readFileSync(out, 'utf-8'));
+  const pack = readPackFile(out);
   assert.ok(pack.knowledge.embeddings === undefined);
 
   // Merge into an empty home re-learns via the fake Ollama URL? No — OLLAMA_URL
