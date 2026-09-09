@@ -358,6 +358,17 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ROADMAP §1.3: Simple vs Advanced mode + §1.2 status pill */
+    body[data-ui-mode="advanced"] [data-ui="simple"] { display: none !important; }
+    body[data-ui-mode="simple"] [data-ui="advanced"] { display: none !important; }
+    .seg { display: inline-flex; background: rgba(15,23,42,.85); border: 1px solid var(--border-color); border-radius: 10px; padding: 3px; gap: 2px; }
+    .seg button { border: 0; background: transparent; color: var(--text-muted); padding: 0.35rem 0.9rem; border-radius: 8px; cursor: pointer; font-size: 0.78rem; font-weight: 600; }
+    .seg button.on { background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; }
+    #status-pill { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.72rem; padding: 0.2rem 0.6rem; border-radius: 999px; white-space: nowrap; cursor: default; }
+    .error-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; margin-top: 0.55rem; }
+    .error-actions button { font-size: 0.7rem; padding: 0.28rem 0.6rem; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(139,92,246,0.12); color: #c4b5fd; cursor: pointer; }
+    .error-actions button:hover { background: rgba(139,92,246,0.25); }
+
     /* Modal Overlay & Card */
     .modal-overlay {
       display: none;
@@ -625,6 +636,8 @@
         <div style="display:flex; gap:0.4rem; margin-top:0.3rem">
           <button class="sources-btn" style="flex:1; font-size:0.7rem; padding:0.2rem 0.3rem" onclick="exportKbFormat('markdown')" title="Download the knowledge base as a readable Markdown file">⬇ Markdown</button>
           <button class="sources-btn" style="flex:1; font-size:0.7rem; padding:0.2rem 0.3rem" onclick="exportKbFormat('jsonl')" title="Download the knowledge base as JSONL (one chunk per line)">⬇ JSONL</button>
+          <button class="sources-btn" style="flex:1; font-size:0.7rem; padding:0.2rem 0.3rem" onclick="exportKbFormat('csv')" title="Download the knowledge base as a spreadsheet-friendly CSV file">⬇ CSV</button>
+          <button class="sources-btn" style="flex:1; font-size:0.7rem; padding:0.2rem 0.3rem" onclick="exportKbFormat('report')" title="Download a printable HTML report of the whole knowledge base (stats + every chunk)">🗎 Report</button>
         </div>
         <input type="file" id="kb-pack-file" accept=".raganyllm,application/json,.json" style="display:none" onchange="previewKbPack()">
         <div style="display:flex; gap:0.4rem; margin-top:0.35rem">
@@ -709,6 +722,7 @@
           <div style="font-size:0.85rem; color:var(--text-muted)">
             Active LLM: <strong id="active-model-display" style="color:#c084fc">None Selected</strong>
           </div>
+          <span id="status-pill" title="Overall status">···</span>
           <button class="sources-btn" style="font-size:0.75rem; padding:0.3rem 0.55rem" title="Export your knowledge base as a portable .raganyllm pack" onclick="exportKb()">⬆ Export KB</button>
           <button class="sources-btn" style="font-size:0.75rem; padding:0.3rem 0.55rem" title="Import a .raganyllm knowledge or AI pack — or just drag & drop the file anywhere in the window" onclick="openSettingsModal(); setTimeout(function(){ document.getElementById('kb-pack-file').click(); }, 150)">⬇ Import Pack</button>
           <button class="sources-btn" style="font-size:0.75rem; padding:0.3rem 0.6rem" title="Start a new conversation (clears conversation memory)" onclick="clearChat()">🧹 New Chat</button>
@@ -753,7 +767,34 @@
         <button class="close-btn" onclick="closeSettingsModal()">&times;</button>
       </div>
       <div class="modal-body">
-        <div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.7rem">
+          <div>
+            <b style="color:white; font-size:0.9rem">Experience mode</b>
+            <div style="font-size:0.7rem; color:var(--text-muted); line-height:1.35">Simple keeps everything easy. Advanced reveals every expert knob (retrieval, enhancements, model manager…).</div>
+          </div>
+          <div class="seg" id="mode-seg">
+            <button type="button" data-mode="simple" onclick="setUiMode('simple')">🙂 Simple</button>
+            <button type="button" data-mode="advanced" onclick="setUiMode('advanced')">🧑‍🔬 Advanced</button>
+          </div>
+        </div>
+
+        <div data-ui="simple" style="border-top:1px solid var(--border-color); padding-top:1rem">
+          <div class="section-title">How much detail?</div>
+          <div style="font-size:0.74rem; color:var(--text-muted); margin-bottom:0.55rem; line-height:1.45">
+            Pick how thorough your answers should be. Your saved expert settings (top matches, minimum match,
+            search mode, enhancements) stay exactly as they are — switch to <b>Advanced</b> to change them.
+          </div>
+          <select id="detail-select" style="width:100%; font-size:0.85rem; padding:0.45rem 0.5rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:8px">
+            <option value="balanced" selected>Balanced (default)</option>
+            <option value="concise">Concise — short, scannable answers</option>
+            <option value="detailed">Detailed — thorough, with examples and reasoning</option>
+          </select>
+          <div style="margin-top:0.55rem; font-size:0.72rem; color:var(--text-muted)">
+            Need to install or delete models, change the storage directory, or tune retrieval? <a href="javascript:void(0)" onclick="setUiMode('advanced')" style="color:#a78bfa">Switch to Advanced mode</a>.
+          </div>
+        </div>
+
+        <div data-ui="advanced">
           <div class="section-title">Manage Installed Ollama Models</div>
           <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.75rem">
             Delete unwanted or custom standalone models directly from Ollama storage.
@@ -763,7 +804,7 @@
           </div>
         </div>
 
-        <div style="border-top:1px solid var(--border-color); padding-top:1rem">
+        <div data-ui="advanced" style="border-top:1px solid var(--border-color); padding-top:1rem">
           <div class="section-title">External SSD / Custom Storage Directory</div>
           <div class="config-input-group" style="margin-top:0.5rem">
             <input type="text" id="modal-dir-input" placeholder="e.g. E:\ollama_models">
@@ -773,7 +814,7 @@
         </div>
 
         <!-- Advanced Retrieval Settings -->
-        <div style="border-top:1px solid var(--border-color); padding-top:1rem">
+        <div data-ui="advanced" style="border-top:1px solid var(--border-color); padding-top:1rem">
           <div class="section-title">Retrieval (Advanced)</div>
           <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.6rem; line-height:1.4">
             Tune how answers use your knowledge base.
@@ -830,6 +871,103 @@
     let lastStatusData = null; // latest /api/models payload (used by Settings modal)
     let chatHistory = []; // completed turns of the current conversation (sent to /api/query)
     let pendingDocFilter = []; // doc titles the user scoped retrieval to (empty = whole KB)
+    let lastQueryText = ''; // for the Error Doctor "retry" action
+    let uiMode = null; // 'simple' | 'advanced' (ROADMAP §1.3)
+
+    // ---- ROADMAP §1.3: Simple vs Advanced mode ---------------------------------
+    function initUiMode() {
+      uiMode = localStorage.getItem('raganyllm_ui_mode') || 'simple';
+      applyUiMode();
+      updateStatusPill();
+    }
+    function setUiMode(mode) {
+      uiMode = (mode === 'advanced') ? 'advanced' : 'simple';
+      localStorage.setItem('raganyllm_ui_mode', uiMode);
+      applyUiMode();
+    }
+    function applyUiMode() {
+      document.body.dataset.uiMode = uiMode;
+      const seg = document.getElementById('mode-seg');
+      if (seg) {
+        seg.querySelectorAll('button').forEach((b) => {
+          b.classList.toggle('on', b.dataset.mode === uiMode);
+        });
+      }
+      updateStatusPill();
+    }
+    function uiDetail() {
+      // Simple mode sends the "How much detail?" pick; Advanced leaves the
+      // server default (balanced) untouched.
+      if (uiMode !== 'simple') return undefined;
+      const sel = document.getElementById('detail-select');
+      return sel ? sel.value : undefined;
+    }
+
+    // ---- ROADMAP §1.2: status traffic light --------------------------------
+    function updateStatusPill() {
+      const pill = document.getElementById('status-pill');
+      if (!pill) return;
+      const data = lastStatusData;
+      const select = document.getElementById('model-select');
+      const modelChosen = !!(select && select.value);
+      let color = '#64748b';
+      let label = 'Checking…';
+      let reason = 'Checking status…';
+      if (data) {
+        const embName = data.embedding_model || 'nomic-embed-text';
+        const embBase = String(embName).split(':')[0];
+        const embInstalled = (data.models || []).some((m) => String(m).split(':')[0] === embBase);
+        if (!data.connected) {
+          color = '#ef4444'; label = '🔴 Setup required'; reason = 'The AI engine (Ollama) is not reachable. Start Ollama, then wait a moment.';
+        } else if (!embInstalled) {
+          color = '#ef4444'; label = '🔴 Setup required'; reason = `The embedding model '${embName}' is not installed in Ollama yet — RAG needs it to search your documents.`;
+        } else if (!modelChosen) {
+          color = '#f59e0b'; label = '🟡 Needs attention'; reason = 'Pick a chat model from the sidebar dropdown (Select Target Ollama LLM).';
+        } else if (!data.knowledge_base || data.knowledge_base.total_chunks === 0) {
+          color = '#f59e0b'; label = '🟡 Needs attention'; reason = 'Ready to chat — add a few documents (📄 tab) to unlock knowledge-base answers.';
+        } else {
+          color = '#22c55e'; label = '🟢 Ready to chat'; reason = 'Ollama is connected, the embedding model is installed, a chat model is selected, and your knowledge base is loaded.';
+        }
+      }
+      pill.style.background = color + '22';
+      pill.style.color = color;
+      pill.style.border = '1px solid ' + color + '55';
+      pill.textContent = label;
+      pill.title = reason;
+    }
+
+    // ---- ROADMAP §1.2: Error Doctor with "Fix it for me" actions -----------
+    function errorBlockHtml(msg) {
+      const m = String(msg || '');
+      let text = friendlyError(m);
+      let actions = '';
+      if (/fetch failed|ECONNREFUSED|connect ECONNREFUSED|localhost:11434|127\.0\.0\.1:11434/i.test(m)) {
+        actions = `<div class="error-actions">
+            <button onclick="window.open('https://ollama.com/download','_blank')">⬇ Get Ollama</button>
+            <button onclick="loadModelsAndStatus(); updateStatusPill();">↻ I started it — check again</button>
+            <button onclick="retryLastQuery()">↻ Retry my question</button>
+          </div>`;
+      } else if (/model ['"]?[\w\/.:-]+['"]? not found|model .* not installed|doesn't match a model|no model/i.test(m)) {
+        actions = `<div class="error-actions">
+            <button onclick="openSettingsModal()">⚙️ Manage installed models</button>
+            <button onclick="retryLastQuery()">↻ Retry my question</button>
+          </div>`;
+      } else if (/embedding/i.test(m)) {
+        actions = `<div class="error-actions">
+            <button onclick="loadModelsAndStatus(); updateStatusPill();">↻ Check Ollama again</button>
+            <button onclick="retryLastQuery()">↻ Retry my question</button>
+          </div>`;
+      } else {
+        actions = `<div class="error-actions"><button onclick="retryLastQuery()">↻ Retry my question</button></div>`;
+      }
+      return `<span style="color:#ef4444">⚠️ ${escapeHtml(text)}</span>${actions}`;
+    }
+    function retryLastQuery() {
+      const input = document.getElementById('query-input');
+      if (!input || !lastQueryText) return;
+      input.value = lastQueryText;
+      sendQuery();
+    }
 
     async function loadModelsAndStatus() {
       try {
@@ -932,8 +1070,10 @@
 
         renderModalModelsList();
         refreshFitAnalysis();
+        updateStatusPill();
       } catch (e) {
         console.error("Error loading status:", e);
+        updateStatusPill();
       }
     }
 
@@ -1157,6 +1297,7 @@
       document.getElementById('active-model-display').innerText = e.target.value;
       lastFitKey = '';
       refreshFitAnalysis();
+      updateStatusPill();
     });
 
     const exportInstructionsEl = document.getElementById('export-instructions');
@@ -1876,7 +2017,10 @@
       const original = btn ? btn.innerHTML : '';
       if (btn) { btn.disabled = true; btn.innerHTML = `<div class="spinner"></div> Exporting...`; }
       try {
-        const endpoint = kind === 'markdown' ? '/api/kb/export/markdown' : '/api/kb/export/jsonl';
+        const endpoint = kind === 'markdown' ? '/api/kb/export/markdown'
+          : kind === 'csv' ? '/api/kb/export/csv'
+          : kind === 'report' ? '/api/kb/export/report'
+          : '/api/kb/export/jsonl';
         const res = await fetch(endpoint);
         if (!res.ok) {
           let detail = `HTTP ${res.status}`;
@@ -1887,7 +2031,7 @@
         const blob = await res.blob();
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        const ext = kind === 'markdown' ? 'md' : 'jsonl';
+        const ext = kind === 'markdown' ? 'md' : kind === 'csv' ? 'csv' : kind === 'report' ? 'html' : 'jsonl';
         a.download = `raganyllm-kb-${new Date().toISOString().slice(0, 10)}.${ext}`;
         document.body.appendChild(a);
         a.click();
@@ -1928,6 +2072,7 @@
       if (!model) return alert("Please select an Ollama model from the dropdown first.");
 
       const useRag = document.getElementById('use-rag-checkbox').checked;
+      lastQueryText = query;
 
       input.value = '';
 
@@ -1986,6 +2131,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             query, model, use_rag: useRag, stream: true, history: chatHistory.slice(-12),
+            detail: uiDetail(),
             filter_docs: pendingDocFilter.length > 0 ? pendingDocFilter : undefined,
             rerank: !!(lastStatusData && lastStatusData.retrieval && lastStatusData.retrieval.rerank_enabled),
             query_expansion: !!(lastStatusData && lastStatusData.retrieval && lastStatusData.retrieval.query_expansion_enabled),
@@ -2032,7 +2178,7 @@
               errored = true;
               if (statusLine) statusLine.remove();
               answerDiv.style.display = 'block';
-              answerDiv.innerHTML = `<span style="color:#ef4444">⚠️ ${escapeHtml(friendlyError(ev.detail))}</span>`;
+              answerDiv.innerHTML = errorBlockHtml(ev.detail);
             } else if (ev.type === 'end') {
               finishedNormally = ev.reason !== 'error';
             }
@@ -2051,7 +2197,7 @@
           errored = true;
           if (statusLine) statusLine.remove();
           answerDiv.style.display = 'block';
-          answerDiv.innerHTML = `<span style="color:#ef4444">⚠️ ${escapeHtml(friendlyError(e.message))}</span>`;
+          answerDiv.innerHTML = errorBlockHtml(e.message);
           answerDiv.insertAdjacentHTML('beforeend', answerSourcesFooter(meta, ''));
         }
       } finally {
@@ -2131,6 +2277,7 @@
       previewKbPack();
     });
 
+    initUiMode();
     loadModelsAndStatus();
     loadBackups();
     loadMyAis();

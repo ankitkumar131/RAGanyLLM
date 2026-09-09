@@ -46,12 +46,12 @@ A 4-step guided setup the first time the app runs (and re-runnable from Settings
 
 ### 1.2 Plain-language everything (P0 · M)
 - Replace every technical status with human text + a "Why?" tooltip: "embedding" → "Teaching the AI to understand your words"; "vector store" → "Your AI's memory"; "chunking" → "Cutting documents into readable pieces".
-- First-class **Error Doctor**: every error gets an icon, a plain explanation, the fix, and a "Fix it for me" button (e.g. "Ollama is not running" → button "Start Ollama"). *(partial: `friendlyError()` now maps common failures — Ollama down, model not installed, embedding failure, oversized context — into plain-language hints in the chat UI; "Fix it for me" action buttons still open)*
-- **Status traffic light** always visible: 🟢 Ready to chat / 🟡 Needs attention / 🔴 Setup required, with one-line reason. *(partial: Ollama + embedding-model badges in the sidebar now reflect live state — offline, missing embedding model, or ready)*
+- First-class **Error Doctor**: every error gets an icon, a plain explanation, the fix, and a "Fix it for me" button (e.g. "Ollama is not running" → button "Start Ollama"). *(partial: `friendlyError()` maps common failures — Ollama down, model not installed, embedding failure, oversized context — into plain-language hints in the chat UI; query errors now render action buttons: **Get Ollama** download link, **check-again** (refreshes the connection), **manage models**, and **↻ Retry my question**. Ingestion/import progress errors still show plain text — wiring them to the same action cards remains)*
+- [x] **Status traffic light** always visible in the chat header: 🟢 Ready to chat / 🟡 Needs attention / 🔴 Setup required, with a one-line reason tooltip — driven by live Ollama connection, embedding-model install state, selected chat model, and KB contents (refresh every 15 s). *(done — sidebar Ollama/embedding badges additionally reflect live state)*
 
 ### 1.3 Modes (P0 · S)
-- **Simple mode (default)** — zero knobs: one dropdown "How much detail?" (Concise / Balanced / Detailed).
-- **Advanced mode** — reveals chunk size, overlap, top-k, threshold, prompt template, system prompt, etc.
+- [x] **Simple mode (default)** — ⚙️ Settings starts in a **🙂 Simple** view (stored per browser) with one friendly control: "How much detail?" (Concise / Balanced / Detailed), wired into `/api/query` → family-aware system prompts (see §2.3). Advanced blocks are hidden, never reset.
+- [x] **Advanced mode** — one click in Settings reveals every expert knob: top-k, similarity threshold, search mode, the §2.2 enhancement toggles, model manager, and the custom storage directory. *(chunk size/overlap remain constants — tunable re-chunking is the open §2.1 item)*
 
 ### 1.4 Guided "My AI" creator (P0 · L — centerpiece, see §4)
 
