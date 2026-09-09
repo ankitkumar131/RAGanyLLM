@@ -335,6 +335,54 @@ test('encrypted pack: export with password, import with right/wrong password', a
   } finally { await stopApp(app); }
 });
 
+test('backups: create, auto-backup on clear, restore round-trip, list', async () => {
+  seedKb([
+    [DOC('a', 'Alpha', 'Alpha content about backup mechanics.', 'File: Alpha.md'), EMB(0)],
+    [DOC('b', 'Beta', 'Beta content stays restorable after wipe.', 'File: Beta.md'), EMB(1)]
+  ]);
+  const app = await startApp();
+  try {
+    // Manual backup.
+    const mk = await reqJson(app.port, 'POST', '/api/kb/backup', {});
+    assert.strictEqual(mk.status, 200);
+    const manualName = mk.data.backup;
+    assert.match(manualName, /^raganyllm-kb-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.json$/);
+
+    // Clear KB auto-backs-up the pre-clear state first.
+    const clr = await reqJson(app.port, 'POST', '/api/clear-kb', {});
+    assert.strictEqual(clr.status, 200);
+    assert.match(clr.data.backup, /^raganyllm-kb-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.json$/);
+    let m = await (await fetch(`http://127.0.0.1:${app.port}/api/models`)).json();
+    assert.strictEqual(m.knowledge_base.total_chunks, 0);
+
+    // Empty-KB backup is refused with a friendly message.
+    const empty = await reqJson(app.port, 'POST', '/api/kb/backup', {});
+    assert.strictEqual(empty.status, 400);
+
+    // List shows entries.
+    const ls = await (await fetch(`http://127.0.0.1:${app.port}/api/kb/backups`)).json();
+    assert.ok(Array.isArray(ls.backups) && ls.backups.length >= 1);
+
+    // Restore the manual snapshot.
+    const rs = await reqJson(app.port, 'POST', '/api/kb/restore', { name: manualName });
+    assert.strictEqual(rs.status, 200);
+    assert.strictEqual(rs.data.knowledge_base.total_chunks, 2);
+    m = await (await fetch(`http://127.0.0.1:${app.port}/api/models`)).json();
+    assert.strictEqual(m.knowledge_base.total_chunks, 2);
+    assert.strictEqual(m.knowledge_base.total_documents, 2);
+
+    // Query actually works against restored data (keyword index rebuilt).
+    const q = await reqJson(app.port, 'POST', '/api/query', { query: 'Beta content', model: 'fake-llm:latest', use_rag: true, stream: false });
+    assert.strictEqual(q.data.retrieved_sources.length, 1);
+
+    // Restore validation: traversal names / missing files are rejected.
+    const bad = await reqJson(app.port, 'POST', '/api/kb/restore', { name: '../evil.json' });
+    assert.strictEqual(bad.status, 400);
+    const nf = await reqJson(app.port, 'POST', '/api/kb/restore', { name: 'raganyllm-kb-0000-00-00T00-00-00.json' });
+    assert.strictEqual(nf.status, 400);
+  } finally { await stopApp(app); }
+});
+
 test('delete-doc, plain exports and samples endpoints', async () => {
   seedKb([[DOC('a', 'Doc A', 'Some content for doc a.'), EMB(0)]]);
   const app = await startApp();

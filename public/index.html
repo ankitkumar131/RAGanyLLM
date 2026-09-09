@@ -599,6 +599,13 @@
           <input type="password" id="export-password" placeholder="🔒 Password-protect export (optional)" autocomplete="new-password" style="flex:1; min-width:0; font-size:0.72rem; padding:0.3rem 0.45rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px">
           <input type="password" id="import-password" placeholder="Pack password, if protected" autocomplete="new-password" style="flex:1; min-width:0; font-size:0.72rem; padding:0.3rem 0.45rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px">
         </div>
+        <div style="margin-top:0.45rem; border-top:1px dashed var(--border-color); padding-top:0.4rem">
+          <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.3rem">
+            <button id="btn-backup-now" class="sources-btn" style="font-size:0.7rem; padding:0.2rem 0.5rem" onclick="backupNow()" title="Save a snapshot of the current knowledge base into your backups folder">💾 Back up now</button>
+            <span style="font-size:0.68rem; color:var(--text-muted)">Auto-backups are made before Clear KB and Replace-imports (keep last 10).</span>
+          </div>
+          <div id="backups-list" style="font-size:0.68rem; color:var(--text-muted)"></div>
+        </div>
 
         <!-- Progress Loader for Pack Import -->
         <div id="progress-pack" class="progress-container">
@@ -1301,9 +1308,10 @@
     }
 
     async function clearKB() {
-      if (!confirm("Are you sure you want to clear the entire Knowledge Base?")) return;
+      if (!confirm("Are you sure you want to clear the entire Knowledge Base?\n\nA backup of the current knowledge base is saved first, so you can restore it later.")) return;
       await fetch('/api/clear-kb', { method: 'POST' });
       loadModelsAndStatus();
+      loadBackups();
     }
 
     async function exportKb() {
@@ -1367,6 +1375,68 @@
         btn
       );
       input.value = '';
+      loadBackups();
+    }
+
+    // ---- KB backups (ROADMAP §5.6): auto before Clear/Replace, restore UI ----
+    async function backupNow() {
+      const btn = document.getElementById('btn-backup-now');
+      const original = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = `<div class="spinner"></div> Backing up...`; }
+      try {
+        const res = await fetch('/api/kb/backup', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`✔ Backup created: ${data.backup}`);
+        } else {
+          alert(`Backup failed: ${data.detail || ('HTTP ' + res.status)}`);
+        }
+      } catch (e) {
+        alert(`Backup failed: ${e.message}`);
+      } finally {
+        if (btn) btn.innerHTML = original;
+        if (btn) btn.disabled = false;
+        loadBackups();
+      }
+    }
+
+    async function restoreBackup(name) {
+      if (!confirm(`Restore the knowledge base from '${name}'?\n\nThis REPLACES the current knowledge base with the snapshot. The current state is kept as a new auto-backup first, so you can undo.`)) return;
+      try {
+        const res = await fetch('/api/kb/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(`✔ ${data.message}`);
+        } else {
+          alert(`Restore failed: ${data.detail || ('HTTP ' + res.status)}`);
+        }
+      } catch (e) {
+        alert(`Restore failed: ${e.message}`);
+      }
+      loadModelsAndStatus();
+      loadBackups();
+    }
+
+    async function loadBackups() {
+      const el = document.getElementById('backups-list');
+      if (!el) return;
+      try {
+        const res = await fetch('/api/kb/backups');
+        const data = await res.json();
+        const list = (data && data.backups) || [];
+        if (list.length === 0) {
+          el.textContent = 'No backups yet.';
+          return;
+        }
+        el.innerHTML = '📁 ' + list.map((b) =>
+          `<span style="white-space:nowrap">${escapeHtml(b.name)} (${(b.size / 1024).toFixed(1)} KB)</span> ` +
+          `<button class="sources-btn" style="font-size:0.62rem; padding:0.05rem 0.4rem" onclick="restoreBackup('${b.name.replace(/'/g, '')}')">restore</button>`
+        ).join('<br>');
+      } catch (e) { /* settings page may not be open; ignore */ }
     }
 
     let activeStreamCtrl = null;
@@ -1675,6 +1745,7 @@
     }
 
     loadModelsAndStatus();
+    loadBackups();
     setInterval(loadModelsAndStatus, 15000);
   </script>
 </body>

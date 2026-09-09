@@ -188,8 +188,9 @@ Same bundle format, so a CLI-exported pack imports in the GUI and vice-versa.
 - [x] **Markdown & JSONL exports** — `GET /api/kb/export/markdown` (readable, per-document headings) and `/api/kb/export/jsonl` (one chunk per line); both available as ⬇ buttons in the KB card. *(done — CSV + pretty HTML report remain)*
 
 ### 5.6 Backup & restore (P1 · M)
-- **Auto-backups**: every N minutes or before destructive ops (clear KB, replace import, re-chunk), keep last K rotating snapshots in `~/.raganyllm/backups`; Settings → Restore with timestamp picker.
-- One-click "Back up to file" = export without thinking.
+- [x] **Auto-backups before destructive ops** — Clear KB and Replace-imports snapshot the previous KB first; rotating keep-last-10 in `<data-dir>/backups`. Manage-KB panel lists timestamped snapshots with one-click Restore (current state is auto-backed-up first so restores are undoable). *(done)*
+- [ ] **Scheduled auto-backups** (every N minutes while the app runs) + backup hooks for destructive re-chunk operations — still open.
+- [x] **One-click "Back up to now"** snapshot button next to Export/Import KB. *(file-download backup = the existing ⬆ Export KB pack)*
 
 ---
 
