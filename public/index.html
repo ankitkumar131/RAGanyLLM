@@ -327,7 +327,11 @@
     .sources-btn { background: transparent; border: none; color: #a78bfa; font-size: 0.75rem; cursor: pointer; font-weight: 500; }
     .sources-body { display: none; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem; }
     .sources-body.open { display: flex; }
-    .source-card { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.75rem; }
+    .source-card { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.75rem; scroll-margin-top: 1rem; }
+    .grounding-chip { display: inline-block; vertical-align: super; font-size: 0.62rem; line-height: 1; font-weight: 700; color: #fff; background: linear-gradient(135deg, #8b5cf6, #6366f1); border-radius: 4px; padding: 0.14rem 0.3rem; margin: 0 0.1rem; cursor: pointer; user-select: none; font-style: normal; text-decoration: none; }
+    .grounding-chip:hover { filter: brightness(1.2); }
+    .source-card.flash { border-color: #a78bfa; box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.35); animation: sourceFlash 1.2s ease; }
+    @keyframes sourceFlash { 0%, 100% { background: rgba(0, 0, 0, 0.3); } 35% { background: rgba(139, 92, 246, 0.28); } }
     .source-header { display: flex; justify-content: space-between; font-weight: 600; color: #c084fc; margin-bottom: 0.25rem; }
 
     .chat-footer { padding: 1rem 1.5rem 1.25rem 1.5rem; border-top: 1px solid var(--border-color); background: rgba(9, 13, 22, 0.6); }
@@ -2639,12 +2643,28 @@
 
       let rawAnswer = '';
       let meta = null;
+      let citationMarkers = null; // verified/fake [n] claims (offsets into rawAnswer)
+      let citationClean = null;   // answer without any citation markers
       let finishedNormally = false;
       let errored = false;
 
-      const renderAnswer = () => {
+      const renderAnswer = (withChips) => {
         answerDiv.style.display = 'block';
-        let html = marked.parse(rawAnswer || '…');
+        // §2.4: once the model's citation markers have been verified, render
+        // supported claims as clickable chips and drop unverified (fake) ones.
+        let text = rawAnswer;
+        if (withChips && citationMarkers && citationMarkers.length) {
+          for (const m of [...citationMarkers].reverse()) {
+            if (m.supported) {
+              text = text.slice(0, m.start) +
+                `<sup class="grounding-chip" title="Grounded in source ${m.source} — click to view">${m.source}</sup>` +
+                text.slice(m.end);
+            } else {
+              text = text.slice(0, m.start) + text.slice(m.end);
+            }
+          }
+        }
+        let html = marked.parse(text || '…');
         if (typeof DOMPurify !== 'undefined') html = DOMPurify.sanitize(html);
         answerDiv.innerHTML = html;
         chatWindow.scrollTop = chatWindow.scrollHeight;
@@ -2704,6 +2724,9 @@
               if (statusLine) statusLine.remove();
               answerDiv.style.display = 'block';
               answerDiv.innerHTML = errorBlockHtml(ev.detail);
+            } else if (ev.type === 'citations') {
+              citationMarkers = ev.markers || null;
+              citationClean = (typeof ev.clean === 'string' && ev.clean) ? ev.clean : null;
             } else if (ev.type === 'end') {
               finishedNormally = ev.reason !== 'error';
             }
@@ -2739,14 +2762,17 @@
           answerDiv.innerHTML = '<span style="color:#9ca3af">(The model returned an empty response.)</span>';
           chatHistory.push({ role: 'user', content: query }, { role: 'assistant', content: '(empty response)' });
         } else {
-          chatHistory.push({ role: 'user', content: query }, { role: 'assistant', content: rawAnswer });
-          renderAnswer();
+          // History + copy use the marker-free answer; on-screen text renders
+          // verified citation markers as chips (renderAnswer(true)).
+          const cleanText = citationClean !== null ? citationClean : rawAnswer;
+          chatHistory.push({ role: 'user', content: query }, { role: 'assistant', content: cleanText });
+          renderAnswer(true);
           const tb = document.createElement('div');
           tb.style.cssText = 'display:flex; gap:0.5rem; margin-top:0.55rem';
           const copyBtn = document.createElement('button');
           copyBtn.className = 'sources-btn';
           copyBtn.textContent = '📋 Copy answer';
-          copyBtn.addEventListener('click', () => copyText(rawAnswer));
+          copyBtn.addEventListener('click', () => copyText(cleanText));
           tb.appendChild(copyBtn);
           answerDiv.appendChild(tb);
         }
@@ -2800,6 +2826,23 @@
       dt.items.add(file);
       packInput.files = dt.files;
       previewKbPack();
+    });
+
+    // §2.4: clicking a verified-citation chip reveals + highlights the source
+    // card it points to inside the same chat bubble.
+    document.addEventListener('click', (ev) => {
+      const chip = ev.target && ev.target.closest ? ev.target.closest('.grounding-chip') : null;
+      if (!chip) return;
+      const bubble = chip.closest('.chat-bubble');
+      if (!bubble) return;
+      const n = parseInt(chip.textContent, 10);
+      const card = bubble.querySelectorAll('.source-card')[n - 1];
+      if (!card) return;
+      const body = card.closest('.sources-body');
+      if (body) body.classList.add('open');
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      card.classList.add('flash');
+      setTimeout(() => card.classList.remove('flash'), 1400);
     });
 
     initUiMode();

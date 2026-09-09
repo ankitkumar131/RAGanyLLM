@@ -34,7 +34,19 @@ function startFakeOllama() {
       if (req.url === '/api/chat') {
         const body = await readBody(req);
         res.writeHead(200, { 'Content-Type': 'application/x-ndjson' });
-        const words = 'A streamed answer from the fake model.'.split(' ');
+        // Canned responses let tests drive the §2.4 grounded-citation path.
+        const lastUser = [...(body.messages || [])].reverse().find((m) => m.role === 'user');
+        let canned = 'A streamed answer from the fake model.';
+        if (lastUser && /^cite-me grounded/i.test(lastUser.content)) {
+          canned = 'The V60 brewer uses a paper filter to remove coffee oils. [1]';
+        } else if (lastUser && /^cite-me fake/i.test(lastUser.content)) {
+          canned = 'The moon is made of cheese. [1]';
+        }
+        const words = canned.split(' ');
+        if (body.stream === false) {
+          res.setHeader('Content-Type', 'application/json');
+          return res.end(JSON.stringify({ model: body.model, message: { role: 'assistant', content: canned }, done: true }));
+        }
         let i = 0;
         const timer = setInterval(() => {
           if (i < words.length) {
@@ -120,3 +132,38 @@ test('query: SSE stream with RAG disabled emits meta and tokens without system m
     await new Promise((r) => server.close(r));
   }
 });
+
+test('query: SSE grounded-citation event verifies a supported marker', async () => {
+  fs.writeFileSync(path.join(HOME, 'raganyllm-kb.json'), JSON.stringify({
+    documents: [{ id: 'v60', doc_title: 'V60.md', content: 'The V60 brewer uses a paper filter to remove coffee oils.', source: 'File: V60.md', chunk_index: 0 }],
+    embeddings: [[1, 0, 0, 0, 0, 0, 0, 0]]
+  }));
+  const { port, server } = await createServer(0, '127.0.0.1');
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'cite-me grounded', model: 'fake-llm:latest', stream: true, use_rag: true })
+    });
+    const text = await res.text();
+    const events = [];
+    for (const raw of text.split('\n\n')) {
+      if (!raw.startsWith('data:')) continue;
+      events.push(JSON.parse(raw.replace(/^data:\s?/, '')));
+    }
+    const types = events.map((e) => e.type);
+    assert.ok(types.includes('citations'), 'expected a citations event');
+    assert.strictEqual(types[types.length - 1], 'end');
+    const cit = events.find((e) => e.type === 'citations');
+    assert.strictEqual(cit.markers.length, 1);
+    assert.strictEqual(cit.markers[0].source, 1);
+    assert.strictEqual(cit.markers[0].supported, true);
+    assert.deepStrictEqual(cit.citations[0].sources, [1]);
+    assert.ok(!cit.clean.includes('[1]'), 'clean answer carries no markers');
+    assert.ok(cit.clean.includes('paper filter'));
+  } finally {
+    try { if (server.closeAllConnections) server.closeAllConnections(); } catch (e) { /* ignore */ }
+    await new Promise((r) => server.close(r));
+  }
+});
+
