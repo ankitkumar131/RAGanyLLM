@@ -725,6 +725,16 @@
             <input type="range" id="modal-threshold" min="5" max="90" step="1" value="40" style="flex:1; accent-color:var(--accent-purple)">
             <span id="modal-threshold-val" style="font-size:0.8rem; min-width:3.2rem; text-align:right; color:#c084fc">40%</span>
           </div>
+          <div style="display:flex; align-items:center; gap:0.75rem; margin-top:0.8rem">
+            <label for="modal-search-mode" style="font-size:0.8rem; white-space:nowrap">Search mode:</label>
+            <select id="modal-search-mode" style="flex:1; font-size:0.78rem; padding:0.3rem 0.4rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px">
+              <option value="vector">Vector (semantic similarity)</option>
+              <option value="hybrid">Hybrid (keywords + semantic)</option>
+            </select>
+          </div>
+          <div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.3rem; line-height:1.35">
+            Hybrid also matches exact words/names/identifiers that semantic search can miss. Try it if answers miss exact terms.
+          </div>
           <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.75rem">
             <button class="btn-primary" id="btn-save-retrieval" onclick="saveRetrievalSettings()">Save Retrieval Settings</button>
             <span id="modal-retrieval-status" style="font-size:0.75rem; color:#34d399"></span>
@@ -794,7 +804,8 @@
         document.getElementById('active-model-display').innerText = select.value || 'None';
         const ragCaption = document.getElementById('rag-settings-caption');
         if (ragCaption && data.retrieval) {
-          ragCaption.textContent = `top ${data.retrieval.top_k} match(es) \u00b7 \u2265 ${Math.round(data.retrieval.similarity_threshold * 100)}% match`;
+          const modeWord = data.retrieval.search_mode === 'hybrid' ? 'hybrid' : 'vector';
+          ragCaption.textContent = `top ${data.retrieval.top_k} match(es) \u00b7 \u2265 ${Math.round(data.retrieval.similarity_threshold * 100)}% \u00b7 ${modeWord}`;
         }
 
         const dirInput = document.getElementById('models-dir-input');
@@ -898,14 +909,16 @@
       const dirInput = document.getElementById('models-dir-input').value;
       document.getElementById('modal-dir-input').value = dirInput;
 
-      const r = (lastStatusData && lastStatusData.retrieval) || { top_k: 4, similarity_threshold: 0.4 };
+      const r = (lastStatusData && lastStatusData.retrieval) || { top_k: 4, similarity_threshold: 0.4, search_mode: 'vector' };
       const topk = document.getElementById('modal-topk');
       const thr = document.getElementById('modal-threshold');
+      const mode = document.getElementById('modal-search-mode');
       if (topk) topk.value = r.top_k;
       if (thr) {
         thr.value = Math.round(r.similarity_threshold * 100);
         syncThresholdLabel();
       }
+      if (mode) mode.value = (r.search_mode === 'hybrid') ? 'hybrid' : 'vector';
       renderModalModelsList();
     }
 
@@ -924,6 +937,8 @@
       top_k = Math.min(20, Math.max(1, top_k));
       const thresholdPct = parseInt(thrEl.value, 10) || 40;
       const similarity_threshold = Math.min(0.9, Math.max(0.05, thresholdPct / 100));
+      const searchModeEl = document.getElementById('modal-search-mode');
+      const search_mode = (searchModeEl && searchModeEl.value === 'hybrid') ? 'hybrid' : 'vector';
 
       status.style.color = '#a78bfa';
       status.textContent = 'Saving...';
@@ -931,12 +946,12 @@
         const res = await fetch('/api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ top_k, similarity_threshold })
+          body: JSON.stringify({ top_k, similarity_threshold, search_mode })
         });
         const data = await res.json();
         if (res.ok) {
           status.style.color = '#34d399';
-          status.textContent = `✔ Saved (top ${data.config.top_k} · ${Math.round(data.config.similarity_threshold * 100)}% match)`;
+          status.textContent = `✔ Saved (top ${data.config.top_k} · ${Math.round(data.config.similarity_threshold * 100)}% · ${search_mode})`;
           await loadModelsAndStatus();
         } else {
           status.style.color = '#f87171';
