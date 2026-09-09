@@ -774,6 +774,12 @@
         </div>
       </div>
 
+      <!-- ROADMAP §1.5: KB suggestion chips shown until the first message -->
+      <div id="chat-suggestion-box" style="display:none; margin:0.6rem 1.5rem 0; font-size:0.8rem">
+        <div id="chat-suggestion-label" style="color:var(--text-muted); margin-bottom:0.35rem">💡 Your AI knows your documents — try asking:</div>
+        <div id="chat-suggestion-chips" style="display:flex; flex-wrap:wrap; gap:0.4rem"></div>
+      </div>
+
       <!-- Chat Footer -->
       <div class="chat-footer">
         <div class="input-wrapper">
@@ -1474,6 +1480,7 @@
         renderModalModelsList();
         refreshFitAnalysis();
         updateStatusPill();
+        maybeShowChatSuggestions();
       } catch (e) {
         console.error("Error loading status:", e);
         updateStatusPill();
@@ -2455,6 +2462,43 @@
       );
     }
 
+    // ROADMAP §1.5: chat empty-state chips generated from the KB.
+    async function maybeShowChatSuggestions() {
+      const win = document.getElementById('chat-window');
+      const box = document.getElementById('chat-suggestion-box');
+      if (!win || !box) return;
+      if (win.querySelectorAll('.chat-bubble.user').length > 0) { box.style.display = 'none'; return; }
+      const kb = lastStatusData && lastStatusData.knowledge_base;
+      if (!kb || !kb.total_chunks) { box.style.display = 'none'; return; }
+      box.style.display = 'block';
+      const chips = document.getElementById('chat-suggestion-chips');
+      // refresh the label with real numbers, chips only once per status load
+      const label = document.getElementById('chat-suggestion-label');
+      if (label) label.textContent = `💡 Your AI knows ${kb.total_documents} document(s) (${kb.total_chunks} chunk(s)) — try asking:`;
+      if (chips.dataset.loaded === String(kb.total_chunks)) return;
+      try {
+        const res = await fetch('/api/setup/questions');
+        const data = res.ok ? await res.json() : { questions: [] };
+        chips.innerHTML = '';
+        (data.questions || []).forEach((q) => {
+          const c = document.createElement('button');
+          c.type = 'button';
+          c.className = 'sw-chip';
+          c.textContent = q;
+          c.style.cssText = 'margin:0; font-size:0.75rem; padding:0.4rem 0.75rem';
+          c.addEventListener('click', () => askChatSuggestion(q));
+          chips.appendChild(c);
+        });
+        chips.dataset.loaded = String(kb.total_chunks);
+      } catch (e) { /* ignore */ }
+    }
+    function askChatSuggestion(q) {
+      const box = document.getElementById('chat-suggestion-box');
+      if (box) box.style.display = 'none';
+      const input = document.getElementById('query-input');
+      if (input) { input.value = q; sendQuery(); }
+    }
+
     function clearChat() {
       const chatWindow = document.getElementById('chat-window');
       if (chatWindow.querySelector('.chat-bubble')) {
@@ -2462,6 +2506,7 @@
       }
       chatWindow.querySelectorAll('.chat-bubble').forEach(b => b.remove());
       chatHistory = [];
+      maybeShowChatSuggestions();
     }
 
     async function sendQuery() {
@@ -2474,6 +2519,8 @@
 
       const useRag = document.getElementById('use-rag-checkbox').checked;
       lastQueryText = query;
+      const sugBox = document.getElementById('chat-suggestion-box');
+      if (sugBox) sugBox.style.display = 'none';
 
       input.value = '';
 

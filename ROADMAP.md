@@ -58,8 +58,8 @@ A 4-step guided setup the first time the app runs (and re-runnable from Settings
 ### 1.4 Guided "My AI" creator (P0 · L — centerpiece, see §4)
 
 ### 1.5 Learning content (P1 · M)
-- In-app 90-second tutorial overlay + short video; "What is RAG?" explainer page (with a real diagram of their own data flow); FAQ.
-- Chat empty state: "💡 Ask your AI anything about the 3 documents you gave it" + suggestion chips generated from the KB.
+- In-app 90-second tutorial overlay + short video; "What is RAG?" explainer page (with a real diagram of their own data flow); FAQ. *(open — the §1.1 wizard already acts as a guided mini-tour; a self-contained explainer/FAQ modal remains)*
+- [x] **Chat empty state** — until the first message, the chat shows "💡 Your AI knows N document(s) (M chunk(s)) — try asking:" with up to 3 suggestion chips generated from the KB (`GET /api/setup/questions`); picking one asks the question immediately. Hidden as soon as you type (re-appears after 🧹 New Chat).
 
 ---
 
