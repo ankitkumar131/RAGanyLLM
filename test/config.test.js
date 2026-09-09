@@ -56,3 +56,20 @@ test('clamp helpers', () => {
   assert.strictEqual(clampFloat(-1, 0, 0.99, 0.4), 0);
   assert.strictEqual(clampFloat(0.5, 0, 0.99, 0.4), 0.5);
 });
+
+test('advanced-retrieval toggles default off and persist via saveConfig', () => {
+  let cfg = getConfig();
+  assert.strictEqual(cfg.rerank_enabled, false);
+  assert.strictEqual(cfg.query_expansion_enabled, false);
+  assert.strictEqual(cfg.hyde_enabled, false);
+  cfg = saveConfig({ rerank_enabled: true, query_expansion_enabled: true, hyde_enabled: true, top_k: 5 });
+  assert.strictEqual(cfg.rerank_enabled, true);
+  assert.strictEqual(cfg.query_expansion_enabled, true);
+  assert.strictEqual(cfg.hyde_enabled, true);
+  // Partial update keeps them.
+  const cfg2 = saveConfig({ similarity_threshold: 0.5 });
+  assert.strictEqual(cfg2.rerank_enabled, true);
+  // Non-boolean values are ignored (leave-as-is), never stored.
+  const cfg3 = saveConfig({ rerank_enabled: 'yes' });
+  assert.strictEqual(cfg3.rerank_enabled, true);
+});

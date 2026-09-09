@@ -146,7 +146,10 @@ test('GET /api/models reports defaults and empty KB', async () => {
     const d = await res.json();
     assert.strictEqual(res.status, 200);
     assert.strictEqual(d.connected, true);
-    assert.deepStrictEqual(d.retrieval, { top_k: 4, similarity_threshold: 0.4, search_mode: 'vector' });
+    assert.deepStrictEqual(d.retrieval, {
+      top_k: 4, similarity_threshold: 0.4, search_mode: 'vector',
+      rerank_enabled: false, query_expansion_enabled: false, hyde_enabled: false
+    });
     assert.strictEqual(d.knowledge_base.total_chunks, 0);
   } finally { await stopApp(app); }
 });

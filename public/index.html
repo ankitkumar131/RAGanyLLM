@@ -770,6 +770,22 @@
           <div style="font-size:0.7rem; color:var(--text-muted); margin-top:0.3rem; line-height:1.35">
             Hybrid also matches exact words/names/identifiers that semantic search can miss. Try it if answers miss exact terms.
           </div>
+          <div style="margin-top:0.8rem">
+            <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:0.3rem">🔎 Search only these documents (Ctrl/Cmd-click to pick several; <b>none selected = whole KB</b>):</div>
+            <select id="modal-filter-docs" multiple size="4" style="width:100%; font-size:0.75rem; padding:0.3rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px" title="Leave empty to search the whole knowledge base"></select>
+          </div>
+          <div style="margin-top:0.8rem; border-top:1px dashed var(--border-color); padding-top:0.6rem">
+            <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:0.35rem">⚡ Enhancement passes (optional — each adds one model call per question; works best with capable models):</div>
+            <label class="toggle-label" style="flex-direction:row; gap:0.4rem; margin-bottom:0.3rem" title="Ask the model to re-rank the best ~20 candidate snippets before the final top-k">
+              <input type="checkbox" id="modal-toggle-rerank" style="accent-color:var(--accent-purple); cursor:pointer"> <span>Rerank results with the model</span>
+            </label>
+            <label class="toggle-label" style="flex-direction:row; gap:0.4rem; margin-bottom:0.3rem" title="Paraphrase the question into up to 3 searches and merge the hits">
+              <input type="checkbox" id="modal-toggle-expand" style="accent-color:var(--accent-purple); cursor:pointer"> <span>Expand the question into several searches</span>
+            </label>
+            <label class="toggle-label" style="flex-direction:row; gap:0.4rem" title="Generate a hypothetical answer, embed that, and search with it — strong for short questions">
+              <input type="checkbox" id="modal-toggle-hyde" style="accent-color:var(--accent-purple); cursor:pointer"> <span>HyDE (hypothetical-document search)</span>
+            </label>
+          </div>
           <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.75rem">
             <button class="btn-primary" id="btn-save-retrieval" onclick="saveRetrievalSettings()">Save Retrieval Settings</button>
             <span id="modal-retrieval-status" style="font-size:0.75rem; color:#34d399"></span>
@@ -783,6 +799,7 @@
     let globalModels = [];
     let lastStatusData = null; // latest /api/models payload (used by Settings modal)
     let chatHistory = []; // completed turns of the current conversation (sent to /api/query)
+    let pendingDocFilter = []; // doc titles the user scoped retrieval to (empty = whole KB)
 
     async function loadModelsAndStatus() {
       try {
@@ -954,6 +971,23 @@
         syncThresholdLabel();
       }
       if (mode) mode.value = (r.search_mode === 'hybrid') ? 'hybrid' : 'vector';
+      const tRerank = document.getElementById('modal-toggle-rerank');
+      const tExpand = document.getElementById('modal-toggle-expand');
+      const tHyde = document.getElementById('modal-toggle-hyde');
+      if (tRerank) tRerank.checked = !!r.rerank_enabled;
+      if (tExpand) tExpand.checked = !!r.query_expansion_enabled;
+      if (tHyde) tHyde.checked = !!r.hyde_enabled;
+      // Document filter options mirror the current KB.
+      const kb = (lastStatusData && lastStatusData.knowledge_base) || {};
+      const docList = kb.documents || (kb.document_titles || []).map((title) => ({ title, chunk_count: 0 }));
+      const filterSel = document.getElementById('modal-filter-docs');
+      if (filterSel) {
+        filterSel.innerHTML = docList
+          .map((d) => `<option value="${escapeHtml(d.title)}">${escapeHtml(d.title)} (${d.chunk_count || 0} chunks)</option>`)
+          .join('');
+        const keep = new Set(pendingDocFilter);
+        for (const opt of filterSel.options) { if (keep.has(opt.value)) opt.selected = true; }
+      }
       renderModalModelsList();
     }
 
@@ -974,6 +1008,11 @@
       const similarity_threshold = Math.min(0.9, Math.max(0.05, thresholdPct / 100));
       const searchModeEl = document.getElementById('modal-search-mode');
       const search_mode = (searchModeEl && searchModeEl.value === 'hybrid') ? 'hybrid' : 'vector';
+      const tRerank = document.getElementById('modal-toggle-rerank');
+      const tExpand = document.getElementById('modal-toggle-expand');
+      const tHyde = document.getElementById('modal-toggle-hyde');
+      const filterSel = document.getElementById('modal-filter-docs');
+      pendingDocFilter = filterSel ? Array.from(filterSel.selectedOptions).map((o) => o.value) : [];
 
       status.style.color = '#a78bfa';
       status.textContent = 'Saving...';
@@ -981,12 +1020,19 @@
         const res = await fetch('/api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ top_k, similarity_threshold, search_mode })
+          body: JSON.stringify({
+            top_k, similarity_threshold, search_mode,
+            rerank_enabled: !!(tRerank && tRerank.checked),
+            query_expansion_enabled: !!(tExpand && tExpand.checked),
+            hyde_enabled: !!(tHyde && tHyde.checked)
+          })
         });
         const data = await res.json();
         if (res.ok) {
+          const extra = (tRerank && tRerank.checked ? ' · rerank' : '') + (tExpand && tExpand.checked ? ' · expand' : '') + (tHyde && tHyde.checked ? ' · hyde' : '');
           status.style.color = '#34d399';
-          status.textContent = `✔ Saved (top ${data.config.top_k} · ${Math.round(data.config.similarity_threshold * 100)}% · ${search_mode})`;
+          status.textContent = `✔ Saved (top ${data.config.top_k} · ${Math.round(data.config.similarity_threshold * 100)}% · ${search_mode}${extra})` +
+            (pendingDocFilter.length > 0 ? ` · ${pendingDocFilter.length} doc(s) filtered` : '');
           await loadModelsAndStatus();
         } else {
           status.style.color = '#f87171';
@@ -1816,7 +1862,13 @@
         const res = await fetch('/api/query', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, model, use_rag: useRag, stream: true, history: chatHistory.slice(-12) }),
+          body: JSON.stringify({
+            query, model, use_rag: useRag, stream: true, history: chatHistory.slice(-12),
+            filter_docs: pendingDocFilter.length > 0 ? pendingDocFilter : undefined,
+            rerank: !!(lastStatusData && lastStatusData.retrieval && lastStatusData.retrieval.rerank_enabled),
+            query_expansion: !!(lastStatusData && lastStatusData.retrieval && lastStatusData.retrieval.query_expansion_enabled),
+            hyde: !!(lastStatusData && lastStatusData.retrieval && lastStatusData.retrieval.hyde_enabled)
+          }),
           signal: ctrl.signal
         });
 
