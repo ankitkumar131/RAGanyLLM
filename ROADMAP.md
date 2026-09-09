@@ -47,7 +47,7 @@ A 4-step guided setup the first time the app runs (and re-runnable from Settings
 ### 1.2 Plain-language everything (P0 · M)
 - Replace every technical status with human text + a "Why?" tooltip: "embedding" → "Teaching the AI to understand your words"; "vector store" → "Your AI's memory"; "chunking" → "Cutting documents into readable pieces".
 - First-class **Error Doctor**: every error gets an icon, a plain explanation, the fix, and a "Fix it for me" button (e.g. "Ollama is not running" → button "Start Ollama"). *(partial: `friendlyError()` now maps common failures — Ollama down, model not installed, embedding failure, oversized context — into plain-language hints in the chat UI; "Fix it for me" action buttons still open)*
-- **Status traffic light** always visible: 🟢 Ready to chat / 🟡 Needs attention / 🔴 Setup required, with one-line reason.
+- **Status traffic light** always visible: 🟢 Ready to chat / 🟡 Needs attention / 🔴 Setup required, with one-line reason. *(partial: Ollama + embedding-model badges in the sidebar now reflect live state — offline, missing embedding model, or ready)*
 
 ### 1.3 Modes (P0 · S)
 - **Simple mode (default)** — zero knobs: one dropdown "How much detail?" (Concise / Balanced / Detailed).

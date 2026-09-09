@@ -124,6 +124,7 @@
     .badge-green { background: rgba(16, 185, 129, 0.15); color: #34d399; }
     .badge-red { background: rgba(239, 68, 68, 0.15); color: #f87171; }
     .badge-purple { background: rgba(139, 92, 246, 0.15); color: #c084fc; }
+    .badge-yellow { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
 
     .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
@@ -752,6 +753,24 @@
         } else {
           ollamaBadge.className = 'badge badge-red';
           ollamaBadge.innerHTML = `<span class="dot"></span> Offline`;
+        }
+
+        // Embedding model badge reflects the real state (not hardcoded text).
+        const embBadge = document.getElementById('emb-status');
+        const embName = data.embedding_model || 'nomic-embed-text';
+        if (!data.connected) {
+          embBadge.className = 'badge badge-red';
+          embBadge.innerHTML = `<span class="dot"></span> Ollama offline`;
+        } else {
+          const embBase = String(embName).split(':')[0];
+          const installed = (data.models || []).some(m => String(m).split(':')[0] === embBase);
+          if (!installed) {
+            embBadge.className = 'badge badge-yellow';
+            embBadge.innerHTML = `⚠️ ${escapeHtml(embName)} not installed`;
+          } else {
+            embBadge.className = 'badge badge-purple';
+            embBadge.textContent = embName;
+          }
         }
 
         const select = document.getElementById('model-select');
