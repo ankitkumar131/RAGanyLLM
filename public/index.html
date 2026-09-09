@@ -369,6 +369,36 @@
     .error-actions button { font-size: 0.7rem; padding: 0.28rem 0.6rem; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(139,92,246,0.12); color: #c4b5fd; cursor: pointer; }
     .error-actions button:hover { background: rgba(139,92,246,0.25); }
 
+    /* ROADMAP §1.1: First-Run Wizard */
+    .sw-overlay { display: none; position: fixed; inset: 0; background: rgba(2,6,23,0.82); backdrop-filter: blur(10px); z-index: 3000; align-items: center; justify-content: center; padding: 1rem; }
+    .sw-overlay.active { display: flex; }
+    .sw-card { width: 100%; max-width: 620px; background: linear-gradient(180deg, #111a33 0%, #0b1120 100%); border: 1px solid rgba(139,92,246,0.45); border-radius: 20px; box-shadow: 0 30px 80px rgba(0,0,0,.6); overflow: hidden; animation: fadeIn .25s ease; }
+    .sw-head { padding: 1.1rem 1.4rem 0.9rem; border-bottom: 1px solid var(--border-color); }
+    .sw-head h2 { margin: 0; font-family: var(--font-heading); font-size: 1.25rem; color: #fff; }
+    .sw-head .sw-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem; line-height: 1.45; }
+    .sw-steps { display: flex; gap: 0.3rem; align-items: center; padding: 0.85rem 1.4rem 0; }
+    .sw-dot { flex: 1; height: 4px; border-radius: 99px; background: #1e293b; transition: background .2s; }
+    .sw-dot.on { background: linear-gradient(90deg, #7c3aed, #22d3ee); }
+    .sw-body { padding: 1rem 1.4rem; min-height: 300px; }
+    .sw-step { display: none; }
+    .sw-step.active { display: block; }
+    .sw-card-box { background: rgba(30,41,67,.5); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.7rem 0.85rem; margin-bottom: 0.55rem; display: flex; align-items: center; gap: 0.7rem; }
+    .sw-card-box .sw-ic { font-size: 1.3rem; }
+    .sw-badge { margin-left: auto; white-space: nowrap; font-size: 0.7rem; padding: 0.2rem 0.55rem; border-radius: 999px; }
+    .sw-badge.good { background: rgba(34,197,94,.15); color: #4ade80; border: 1px solid rgba(34,197,94,.35); }
+    .sw-badge.bad { background: rgba(239,68,68,.15); color: #f87171; border: 1px solid rgba(239,68,68,.35); }
+    .sw-badge.mid { background: rgba(251,191,36,.15); color: #fcd34d; border: 1px solid rgba(251,191,36,.35); }
+    .sw-persona { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .sw-persona button { flex: 1 1 45%; text-align: left; background: rgba(30,41,67,.55); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.7rem 0.85rem; cursor: pointer; color: var(--text-main); font-size: 0.8rem; }
+    .sw-persona button.sel { border-color: #a78bfa; background: rgba(139,92,246,.15); box-shadow: 0 0 0 1px #a78bfa; }
+    .sw-persona button b { display: block; color: #fff; margin-bottom: 0.15rem; }
+    .sw-persona button span { color: var(--text-muted); font-size: 0.72rem; line-height: 1.35; display: block; }
+    .sw-foot { display: flex; align-items: center; gap: 0.5rem; padding: 0.85rem 1.4rem 1.15rem; border-top: 1px solid var(--border-color); }
+    .sw-foot .spacer { flex: 1; }
+    .sw-chip { display: inline-block; background: rgba(139,92,246,.12); border: 1px solid rgba(139,92,246,.4); color: #ddd6fe; border-radius: 999px; padding: 0.45rem 0.85rem; font-size: 0.78rem; cursor: pointer; margin: 0 0.35rem 0.45rem 0; }
+    .sw-chip:hover { background: rgba(139,92,246,.28); }
+    .sw-progress-wrap { margin-top: 0.7rem; }
+
     /* Modal Overlay & Card */
     .modal-overlay {
       display: none;
@@ -778,6 +808,13 @@
           </div>
         </div>
 
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem">
+          <div style="font-size:0.78rem">
+            <button class="sources-btn" style="font-size:0.78rem; padding:0.32rem 0.7rem; background:rgba(139,92,246,0.12); border:1px solid rgba(139,92,246,0.3); border-radius:8px" onclick="openSetupWizard(true)" title="Re-run the guided setup: health check, persona, add content, try-it">🪄 Setup Assistant</button>
+          </div>
+          <span id="setup-state-label" style="font-size:0.7rem; color:var(--text-muted)"></span>
+        </div>
+
         <div data-ui="simple" style="border-top:1px solid var(--border-color); padding-top:1rem">
           <div class="section-title">How much detail?</div>
           <div style="font-size:0.74rem; color:var(--text-muted); margin-bottom:0.55rem; line-height:1.45">
@@ -862,6 +899,61 @@
             <span id="modal-retrieval-status" style="font-size:0.75rem; color:#34d399"></span>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROADMAP §1.1: First-Run Wizard (guided setup; re-runnable from Settings) -->
+  <div id="setup-wizard" class="sw-overlay">
+    <div class="sw-card">
+      <div class="sw-head">
+        <h2>🪄 Welcome to raganyllm — let's set you up</h2>
+        <div class="sw-sub" id="sw-sub">Four quick steps: check your computer, tell us what your AI is for, add some knowledge, and try it.</div>
+      </div>
+      <div class="sw-steps" id="sw-steps">
+        <div class="sw-dot on" id="sw-step-1"></div><div class="sw-dot" id="sw-step-2"></div><div class="sw-dot" id="sw-step-3"></div><div class="sw-dot" id="sw-step-4"></div>
+      </div>
+      <div class="sw-body">
+        <div class="sw-step active" data-swstep="1"><div id="sw-health"></div></div>
+        <div class="sw-step" data-swstep="2">
+          <div style="font-size:0.8rem; color:var(--text-main); margin-bottom:0.5rem">What is your AI mainly for? This pre-tunes how it searches your knowledge (you can change anything later).</div>
+          <div class="sw-persona" id="sw-personas"></div>
+        </div>
+        <div class="sw-step" data-swstep="3">
+          <div id="sw-content-status" style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.4rem"></div>
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+            <button class="btn-secondary" style="flex:1; font-size:0.8rem; padding:0.5rem" onclick="document.getElementById('sw-files').click()">📄 Add files (.txt .md .pdf)</button>
+            <button class="btn-secondary" style="flex:1; font-size:0.8rem; padding:0.5rem" onclick="swAddSamples()">✨ Load sample docs</button>
+          </div>
+          <input type="file" id="sw-files" multiple accept=".txt,.md,.pdf" style="display:none" onchange="swIngestFiles()">
+          <div style="margin-top:0.6rem; background:rgba(30,41,67,.4); border:1px solid var(--border-color); border-radius:10px; padding:0.55rem 0.65rem">
+            <label for="sw-note" style="font-size:0.72rem; color:var(--text-muted)">…or paste your own notes</label>
+            <input type="text" id="sw-note-title" placeholder="Title (e.g. My recipe notes)" style="width:100%; margin-top:0.3rem; font-size:0.8rem; padding:0.35rem 0.5rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px">
+            <textarea id="sw-note" rows="2" placeholder="Paste text or Markdown…" style="width:100%; margin-top:0.3rem; font-size:0.8rem; padding:0.35rem 0.5rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px"></textarea>
+            <button class="sources-btn" style="font-size:0.78rem; padding:0.3rem 0.6rem; background:rgba(139,92,246,0.14); border:1px solid rgba(139,92,246,0.3); border-radius:8px" onclick="swAddNote()">➕ Add note</button>
+          </div>
+        </div>
+        <div class="sw-step" data-swstep="4">
+          <p id="sw-try-intro" style="font-size:0.82rem; color:var(--text-muted); line-height:1.5"></p>
+          <div id="sw-chips"></div>
+          <div style="margin-top:0.7rem; font-size:0.75rem; color:var(--text-muted)">Pick a question and the assistant will answer it with your own knowledge — right here in the main chat.</div>
+        </div>
+        <div class="sw-progress-wrap">
+          <div id="sw-progress" class="progress-container">
+            <div class="progress-header">
+              <span class="progress-title">Working…</span>
+              <span id="sw-percent" class="progress-percent">0%</span>
+            </div>
+            <div class="progress-track"><div id="sw-bar" class="progress-fill"></div></div>
+            <div id="sw-status" class="progress-status">Waiting…</div>
+          </div>
+        </div>
+      </div>
+      <div class="sw-foot">
+        <button id="sw-back" class="sources-btn" style="font-size:0.8rem; padding:0.35rem 0.6rem; background:rgba(30,41,67,.6); border:1px solid var(--border-color); border-radius:8px" onclick="swGoStep(Math.max(1, swStep-1))">← Back</button>
+        <div class="spacer"></div>
+        <button id="sw-skip" class="sources-btn" style="font-size:0.75rem; padding:0.3rem 0.6rem; color:#94a3b8" onclick="swSkipStep()">Skip this step</button>
+        <button id="sw-next" class="btn-gradient" style="font-size:0.85rem; padding:0.45rem 1.1rem; border:0; border-radius:10px; color:#fff; font-weight:600; cursor:pointer" onclick="swNext()">Next →</button>
       </div>
     </div>
   </div>
@@ -967,6 +1059,317 @@
       if (!input || !lastQueryText) return;
       input.value = lastQueryText;
       sendQuery();
+    }
+
+    // ---- ROADMAP §1.1: First-Run Wizard ------------------------------------
+    let swStep = 1;
+    let swStatus = null;
+    let swPersona = null;
+
+    async function refreshSetupStatus() {
+      try {
+        const res = await fetch('/api/setup/status');
+        swStatus = res.ok ? await res.json() : null;
+      } catch (e) { swStatus = null; }
+      const lbl = document.getElementById('setup-state-label');
+      if (lbl) {
+        if (swStatus && !swStatus.first_run) lbl.textContent = 'Setup complete' + (swStatus.persona_label ? ' · ' + swStatus.persona_label : '');
+        else if (swStatus) lbl.textContent = 'First-run setup not finished';
+        else lbl.textContent = '';
+      }
+      return swStatus;
+    }
+
+    async function openSetupWizard(force) {
+      const status = await refreshSetupStatus();
+      if (!status) return;
+      if (!force && !status.first_run) return;
+      swPersona = status.persona || null;
+      document.getElementById('setup-wizard').classList.add('active');
+      swStep = 1;
+      swRender();
+    }
+
+    function swClose() { document.getElementById('setup-wizard').classList.remove('active'); }
+
+    function swNext() {
+      if (swStep === 1) {
+        if (!(swStatus && swStatus.ollama && swStatus.ollama.connected)) return;
+        swGoStep(2); return;
+      }
+      if (swStep === 2) { if (!swPersona) return; swGoStep(3); return; }
+      if (swStep === 3) { swGoStep(4); return; }
+      swGoStep(swStep + 1);
+    }
+    function swSkipStep() {
+      // swRender assigns a tailored handler per step; this is the fallback
+      // for the static inline onclick before the first render assigns one.
+      if (swStep === 1 && swStatus && !swStatus.first_run) { swClose(); return; }
+      swGoStep(Math.min(4, swStep + 1));
+    }
+
+    function swGoStep(n) {
+      swStep = Math.min(4, Math.max(1, n));
+      swRender();
+    }
+
+    function swRender() {
+      const status = swStatus || {};
+      for (let i = 1; i <= 4; i++) {
+        const dot = document.getElementById('sw-step-' + i);
+        if (dot) dot.className = 'sw-dot' + (i <= swStep ? ' on' : '');
+      }
+      document.querySelectorAll('#setup-wizard .sw-step').forEach((el) => {
+        el.classList.toggle('active', parseInt(el.dataset.swstep, 10) === swStep);
+      });
+      const backBtn = document.getElementById('sw-back');
+      const nextBtn = document.getElementById('sw-next');
+      const skipBtn = document.getElementById('sw-skip');
+      backBtn.style.visibility = swStep === 1 ? 'hidden' : 'visible';
+      nextBtn.style.display = swStep === 4 ? 'none' : '';
+      if (swStep === 4) {
+        swRenderTryIt();
+        skipBtn.style.visibility = 'visible';
+        skipBtn.textContent = '✓ Finish setup';
+        skipBtn.onclick = () => swFinish();
+        return;
+      }
+      if (swStep === 1) {
+        swRenderHealth();
+        nextBtn.disabled = !(status.ollama && status.ollama.connected);
+        nextBtn.textContent = 'Next →';
+        skipBtn.style.visibility = 'visible';
+        skipBtn.textContent = (status.first_run && !(status.ollama && status.ollama.connected)) ? 'Close for now' : 'Close';
+        skipBtn.onclick = () => { if (!status.first_run) { swClose(); } else if (status.ollama && status.ollama.connected) { swGoStep(2); } else { swClose(); } };
+      } else if (swStep === 2) {
+        swRenderPersonas();
+        nextBtn.disabled = !swPersona;
+        skipBtn.style.visibility = 'visible';
+        skipBtn.textContent = 'Skip (no preset)';
+        skipBtn.onclick = () => swGoStep(3);
+      } else if (swStep === 3) {
+        swRenderContent();
+        nextBtn.disabled = false;
+        nextBtn.textContent = 'I added content →';
+        skipBtn.style.visibility = 'visible';
+        skipBtn.textContent = 'Add documents later';
+        skipBtn.onclick = () => swGoStep(4);
+      }
+    }
+
+    function swHealthCard(ic, title, ok, stateText, okDetail, badDetail, action) {
+      const box = document.createElement('div');
+      box.className = 'sw-card-box';
+      const icon = document.createElement('span');
+      icon.className = 'sw-ic'; icon.textContent = ic;
+      const mid = document.createElement('div');
+      mid.style.cssText = 'flex:1; min-width:0';
+      const t = document.createElement('div');
+      t.style.cssText = 'font-weight:600; color:#fff; font-size:0.85rem';
+      t.textContent = title;
+      const d = document.createElement('div');
+      d.style.cssText = 'font-size:0.72rem; color:var(--text-muted); line-height:1.4';
+      d.innerHTML = ok ? okDetail : badDetail;
+      mid.appendChild(t); mid.appendChild(d);
+      box.appendChild(icon); box.appendChild(mid);
+      const badge = document.createElement('span');
+      badge.className = 'sw-badge ' + (ok ? 'good' : 'bad');
+      badge.textContent = ok ? '✔ ' + stateText : stateText;
+      box.appendChild(badge);
+      if (!ok && action) {
+        const btn = document.createElement('button');
+        btn.className = 'sources-btn';
+        btn.style.cssText = 'font-size:0.72rem; padding:0.3rem 0.65rem; background:rgba(139,92,246,0.16); border:1px solid rgba(139,92,246,0.35); border-radius:8px; white-space:nowrap';
+        btn.textContent = action.label;
+        btn.addEventListener('click', action.fn);
+        box.appendChild(btn);
+      }
+      return box;
+    }
+
+    function swRenderHealth() {
+      const wrap = document.getElementById('sw-health');
+      if (!wrap || !swStatus) return;
+      const st = swStatus;
+      const models = (st.ollama && st.ollama.models) || [];
+      const connected = !!(st.ollama && st.ollama.connected);
+      wrap.innerHTML = '';
+      wrap.appendChild(swHealthCard(
+        '⚙️', 'AI engine (Ollama)', connected, 'Running',
+        'Running. ' + (models.length > 0 ? 'Detected ' + models.length + ' model(s) on this computer.' : 'No models installed yet.'),
+        'Not reachable. Open the <b>Ollama app</b> (or run <code>ollama serve</code>) and it will appear here automatically.',
+        connected ? null : { label: '⬇ Get Ollama', fn: () => window.open('https://ollama.com/download', '_blank') }
+      ));
+      wrap.appendChild(swHealthCard(
+        '🧠', 'Teaching model (embeddings)', !!(st.embedding && st.embedding.installed), 'Missing',
+        'Ready — <code>' + escapeHtml(st.embedding.name) + '</code> turns your documents into searchable knowledge.',
+        'RAG needs the <code>' + escapeHtml(st.embedding.name) + '</code> model to teach the AI your documents. Install it now (one-time download).',
+        st.embedding && st.embedding.installed ? null : { label: '⬇ Install ' + escapeHtml(st.embedding.name), fn: () => swPullModel(st.embedding.name) }
+      ));
+      const chatInstalled = models.includes(st.recommended_chat);
+      wrap.appendChild(swHealthCard(
+        '💬', 'Chat model (recommended)', chatInstalled, 'Installed',
+        '<code>' + escapeHtml(st.recommended_chat) + '</code> is ready — great for answers with your knowledge.',
+        'Optional but recommended: <code>' + escapeHtml(st.recommended_chat) + '</code> answers you in the chat. Pull it now, or pick any installed model later.',
+        chatInstalled ? null : { label: '⬇ Install ' + escapeHtml(st.recommended_chat), fn: () => swPullModel(st.recommended_chat) }
+      ));
+      if (!connected) {
+        const again = document.createElement('div');
+        again.style.cssText = 'text-align:right; font-size:0.75rem';
+        const a = document.createElement('button');
+        a.className = 'sources-btn';
+        a.textContent = '↻ Check again';
+        a.addEventListener('click', async () => { await refreshSetupStatus(); swRender(); });
+        again.appendChild(a);
+        wrap.appendChild(again);
+      }
+    }
+
+    async function swPullModel(name) {
+      if (!name) return;
+      const nextBtn = document.getElementById('sw-next');
+      if (nextBtn) nextBtn.disabled = true;
+      await executeIngestStream('/api/ollama/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: name })
+      }, 'sw-progress', 'sw-percent', 'sw-bar', 'sw-status', null);
+      await refreshSetupStatus();
+      swRender();
+    }
+
+    function swRenderPersonas() {
+      const wrap = document.getElementById('sw-personas');
+      if (!wrap || !swStatus) return;
+      wrap.innerHTML = '';
+      const presets = swStatus.presets || {};
+      Object.keys(presets).forEach((id) => {
+        const p = presets[id];
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = swPersona === id ? 'sel' : '';
+        b.innerHTML = '<b>' + escapeHtml(p.label) + '</b><span>' + escapeHtml(p.description || '') + '</span>';
+        b.addEventListener('click', async () => {
+          wrap.querySelectorAll('button').forEach((x) => x.classList.remove('sel'));
+          b.classList.add('sel');
+          try {
+            const res = await fetch('/api/setup/persona', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ persona: id })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              swPersona = id;
+              if (data.recommended_chat) swStatus.recommended_chat = data.recommended_chat;
+              await refreshSetupStatus();
+            }
+          } catch (e) { /* offline */ }
+          swRender();
+        });
+        wrap.appendChild(b);
+      });
+    }
+
+    function swRenderContent() {
+      const box = document.getElementById('sw-content-status');
+      if (!box || !swStatus) return;
+      const kb = swStatus.kb || {};
+      box.innerHTML = 'Your knowledge base so far: <b style="color:#fff">' + kb.documents + '</b> document(s) · <b style="color:#fff">' + kb.chunks + '</b> chunk(s).' +
+        (kb.chunks > 0 ? ' Great — you can add more or continue.' : ' It starts empty — add a few files or load the samples below.');
+    }
+
+    async function swAfterAdd() {
+      await refreshSetupStatus();
+      swRenderContent();
+      const nextBtn = document.getElementById('sw-next');
+      if (nextBtn) nextBtn.disabled = false;
+      loadModelsAndStatus();
+    }
+
+    async function swIngestFiles() {
+      const input = document.getElementById('sw-files');
+      if (!input.files || input.files.length === 0) return;
+      const formData = new FormData();
+      for (const f of input.files) formData.append('files', f);
+      await executeIngestStream('/api/ingest-files', { method: 'POST', body: formData }, 'sw-progress', 'sw-percent', 'sw-bar', 'sw-status', null);
+      input.value = '';
+      await swAfterAdd();
+    }
+
+    async function swAddSamples() {
+      await executeIngestStream('/api/kb/samples', { method: 'POST' }, 'sw-progress', 'sw-percent', 'sw-bar', 'sw-status', null);
+      await swAfterAdd();
+    }
+
+    async function swAddNote() {
+      const titleEl = document.getElementById('sw-note-title');
+      const noteEl = document.getElementById('sw-note');
+      const content = (noteEl.value || '').trim();
+      if (!content) return alert('Paste some text first — that becomes one document in your knowledge base.');
+      await executeIngestStream('/api/ingest-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: (titleEl.value || '').trim() || 'Pasted note', content })
+      }, 'sw-progress', 'sw-percent', 'sw-bar', 'sw-status', null);
+      titleEl.value = '';
+      noteEl.value = '';
+      await swAfterAdd();
+    }
+
+    async function swRenderTryIt() {
+      const intro = document.getElementById('sw-try-intro');
+      const chips = document.getElementById('sw-chips');
+      const kb = (swStatus && swStatus.kb) || {};
+      if (!intro || !chips) return;
+      intro.innerHTML = (swStatus && swStatus.persona_label ? 'Persona: <b style="color:#fff">' + escapeHtml(swStatus.persona_label) + '</b>. ' : '') +
+        'You have <b style="color:#fff">' + kb.chunks + '</b> chunk(s) of knowledge ready. Try one of these:';
+      chips.innerHTML = '';
+      try {
+        const res = await fetch('/api/setup/questions');
+        const data = res.ok ? await res.json() : { questions: [] };
+        (data.questions || []).forEach((q) => {
+          const c = document.createElement('button');
+          c.type = 'button';
+          c.className = 'sw-chip';
+          c.textContent = q;
+          c.addEventListener('click', () => swAskChip(q));
+          chips.appendChild(c);
+        });
+      } catch (e) { /* ignore */ }
+      if (chips.children.length === 0) {
+        const c = document.createElement('button');
+        c.type = 'button';
+        c.className = 'sw-chip';
+        c.textContent = 'Hello! What can you help me with?';
+        c.addEventListener('click', () => swAskChip('Hello! What can you help me with?'));
+        chips.appendChild(c);
+      }
+    }
+
+    async function swAskChip(q) {
+      await swFinish();
+      const input = document.getElementById('query-input');
+      if (input) {
+        input.value = q;
+        setTimeout(() => sendQuery(), 300);
+      }
+    }
+
+    async function swFinish() {
+      const persona = swPersona || (swStatus && swStatus.persona) || null;
+      try {
+        await fetch('/api/setup/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ persona })
+        });
+      } catch (e) { /* offline */ }
+      swClose();
+      const finBtn = document.getElementById('sw-finish-btn');
+      if (finBtn) finBtn.remove();
+      await refreshSetupStatus();
+      loadModelsAndStatus();
     }
 
     async function loadModelsAndStatus() {
@@ -1328,9 +1731,8 @@
       statusEl.innerText = 'Processing...';
       statusEl.style.color = 'var(--text-muted)';
 
-      const originalBtnText = buttonEl.innerHTML;
-      buttonEl.disabled = true;
-      buttonEl.innerHTML = `<div class="spinner"></div> Processing...`;
+      const originalBtnText = buttonEl ? buttonEl.innerHTML : '';
+      if (buttonEl) { buttonEl.disabled = true; buttonEl.innerHTML = `<div class="spinner"></div> Processing...`; }
 
       let hasError = false;
       let finalData = null;
@@ -1391,8 +1793,7 @@
         statusEl.innerText = `Error: ${e.message}`;
         statusEl.style.color = '#f87171';
       } finally {
-        buttonEl.disabled = false;
-        buttonEl.innerHTML = originalBtnText;
+        if (buttonEl) { buttonEl.disabled = false; buttonEl.innerHTML = originalBtnText; }
         if (!hasError) {
           setTimeout(() => {
             progressContainer.classList.remove('active');
@@ -2282,6 +2683,8 @@
     loadBackups();
     loadMyAis();
     setInterval(loadModelsAndStatus, 15000);
+    // First run? Open the guided wizard (ROADMAP §1.1).
+    openSetupWizard(false);
   </script>
 </body>
 </html>
