@@ -20,6 +20,7 @@
 - 🔌 **Automatic Port Fallback**: Automatically switches from port `8000` ➔ `8001` if port 8000 is occupied by another process.
 - 🔒 **Local-first & Safe**: The server binds to `127.0.0.1` only and rejects state-changing requests from untrusted web pages — no more open CORS that let random websites drive your local Ollama.
 - 💾 **User Data in `~/.raganyllm`**: Your knowledge base and settings now live in `~/.raganyllm/` (or `$RAGANYLLM_HOME` if set) instead of the current folder — so a global `npm install -g` works from anywhere and two app instances can't corrupt each other's files. Duplicate document chunks are detected and skipped automatically.
+- 📦 **Portable Knowledge Packs (`.raganyllm`)**: One click **⬆ Export KB** saves your whole knowledge base — content *and* embeddings — into a single file. On any other device with raganyllm, click **⬇ Import KB**, choose **Merge** (duplicates skipped) or **Replace**, and you're done. Compact (text-only) exports are also supported and re-learn embeddings on import via Ollama.
 
 ---
 

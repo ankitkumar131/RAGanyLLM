@@ -75,7 +75,7 @@ The current pipeline is: chunk (600 chars) → embed → top-k cosine → stuff 
 - [ ] **[P1 · M] Hybrid search** — vector + BM25/keyword (SQLite FTS5 or in-memory inverted index), fused with Reciprocal Rank Fusion (RRF). Catches exact names, code identifiers, and version numbers that pure vector search misses.
 - [ ] **[P1 · M] Reranking** — add a second-pass reranker over the top ~20 candidates before final top-k. Options: a small local cross-encoder (via transformers.js or an Ollama rerank model) or LLM-based rerank ("which of these is most relevant?").
 - [ ] **[P1 · M] Query rewriting / expansion** — expand the user's question with 2–3 paraphrases or decompose multi-part questions ("What is X and how do I install it?" → 2 searches).
-- [ ] **[P0 · S] Honest "I don't know"** — if best score < threshold → the assistant must say *"I couldn't find this in your knowledge base"* instead of hallucinating; add a "Not in your KB — ask me to add it?" action.
+- [x] **[P0 · S] Honest "I don't know"** — when nothing clears the similarity threshold, the query now injects an honesty system-prompt and the UI shows a "No relevant context found" banner (also for embedding errors). *(done; remaining: a "Not in your KB — ask me to add it?" click-to-ingest action in the chat)*
 - [ ] **[P0 · S] Metadata filters** — filter by doc/source/tag/date before search; per-source weights ("prioritize files over scraped URLs").
 - [ ] **[P2 · M] HyDE** — generate a hypothetical answer, embed *that*, search with it. Strong recall boost for short queries.
 
@@ -142,10 +142,11 @@ Today `POST /api/export-ollama-model` just bakes the whole KB into a giant syste
 **Goal: "Take my AI's brain from this laptop to my friend's PC / my work machine in under a minute, no cables, no terminal."**
 
 ### 5.1 The portable bundle format — `.raganyllm` pack (P0 · M)
-One file, versioned, self-describing, checksummed:
+- [x] **v1 format shipped** *(single versioned JSON file — ZIP container deferred)*: `{ format: 'raganyllm-pack', version: 1, kind: 'knowledge', created_at, stats, settings.embedding_model, knowledge: { chunks[]: {id, doc_title, content, source, chunk_index}, embeddings?[] } }`. Default exports **include embeddings** (instant, offline import); `?embeddings=0` / compact export stores text only and re-learns on import. *(done — implemented 2026-09-09)*
+- [ ] Upgrade container to the full ZIP layout below (manifest w/ sha-256 checksums, separate `documents.jsonl`/`chunks.jsonl`/`settings.json`, safe-path validation) so packs can grow to large document sets and support the AI-pack extension.
 
 ```
-menu-bot.raganyllm            (it's a ZIP)
+menu-bot.raganyllm            (future: ZIP)
 ├── manifest.json             # schema version, app version, created-at, counts, sha-256 of every entry
 ├── knowledge/
 │   ├── documents.jsonl       # full original docs + metadata (title, source, URL, tags, ingested-at)
@@ -154,20 +155,22 @@ menu-bot.raganyllm            (it's a ZIP)
 ├── ai/
 │   ├── model-card.json       # any custom AIs built from this KB (name, base, rules, avatar)
 │   └── modelfiles/           # generated Modelfiles (text)
-└── embeddings/               # OPTIONAL (default off): keeps import instant but larger
+└── embeddings/               # OPTIONAL: keeps import instant but larger
     └── vectors.npy           # row order == chunks.jsonl
 ```
 
-- **Two export flavors** in the UI:
-  - **💾 Knowledge Pack** — documents + chunks + settings (embeddings optional). Small, human-readable, re-embeds on import.
+- [ ] **Two export flavors** in the UI:
+  - **💾 Knowledge Pack** — documents + chunks + settings (embeddings optional). Small, human-readable, re-embeds on import. *(shipped as compact option)*
   - **🤖 AI Pack** — Knowledge Pack + the custom-AI cards/Modelfiles so the recipient gets your finished assistant, not just raw knowledge.
-- **Encrypt option** (password → AES-GCM): a noob's docs are often private — one checkbox, one password, done.
+- [ ] **Encrypt option** (password → AES-GCM): a noob's docs are often private — one checkbox, one password, done.
 
 ### 5.2 One-click flows everywhere (P0 · S)
-- Header toolbar: **⬇ Import** and **⬆ Export** buttons.
-- **Export**: name the pack → choose contents (KB / KB+AI) → choose embeddings (small / big-but-instant) → password (optional) → save.
-- **Import**: drag & drop the `.raganyllm` file anywhere in the UI (or File → Open). The app **validates** (schema version, checksums, safe paths — no zip-slip), shows a preview card ("Contains: 3 documents · 412 chunks · 1 AI 'menu-bot'"), then asks: **Merge / Replace / Preview**. On merge: dedupe by content hash; on replace: warn first, keep an auto-backup.
-- **Post-import wizard**: if the embedding model or base model is missing on this device → "This pack needs a small helper — download now?" with progress. Then: "🎉 Imported! Try asking: …".
+- [x] **Export & Import buttons in the Knowledge Base card** — one-click download of `raganyllm-kb-YYYY-MM-DD.raganyllm` and pick-a-file import with live progress bar. *(done)*
+- [ ] Header toolbar: **⬇ Import** and **⬆ Export** buttons; drag & drop the `.raganyllm` file anywhere in the UI.
+- [x] **Import mode picker (Merge / Replace)** — merge dedupes by content hash; replace warns first. *(done)*
+- [x] **Validation on import** — schema/version check, per-chunk content validation, all-or-nothing (nothing changes if any chunk is invalid); friendly plain-language errors. *(done)*
+- [ ] **Preview card** before import ("Contains: 3 documents · 412 chunks · 1 AI 'menu-bot'") + auto-backup of the current KB before a replace.
+- [ ] **Post-import wizard**: if the embedding model or base model is missing on this device → "This pack needs a small helper — download now?" with progress. Then: "🎉 Imported! Try asking: …".
 
 ### 5.3 CLI parity (P1 · S)
 ```
@@ -192,7 +195,7 @@ Same bundle format, so a CLI-exported pack imports in the GUI and vice-versa.
 
 ## 6. 🖥️ Reliability, Security & Operations
 
-- [ ] **[P0 · M] Local-first security**: bind `127.0.0.1`; same-origin API (no CORS package needed); upload size/count limits; sanitize all rendered content; validate import archives against path traversal; don't let the UI delete arbitrary Ollama models (confirm against `/api/tags`).
+- [x] **[P0 · M] Local-first security**: binds `127.0.0.1` (`HOST` env to open); same-origin API with an origin guard (403 for untrusted web pages; `cors` package removed); upload size/count limits (25 MB × 10 files, 200 MB pack, 25 MB JSON); LLM output sanitized via DOMPurify; delete-model verifies against `/api/tags` before deleting. *(done; zip-slip checks apply once packs become ZIPs)*
 - [ ] **[P1 · M] Optional LAN mode with PIN** — if the user enables "allow other devices", require a PIN shown in the app (covers 5.4's share without opening the whole API).
 - [ ] **[P1 · M] Tests**: unit — chunker boundaries, dedupe, threshold math, cosine/normalization, pack round-trip (export → import → same stats); integration — fake-Ollama server tests every endpoint incl. streaming progress; E2E — first-run wizard, import/merge.
 - [ ] **[P1 · S] `engines` field + CI** (GitHub Actions: lint + test on Node 18/20/22) + a real LICENSE file.
@@ -223,8 +226,8 @@ Same bundle format, so a CLI-exported pack imports in the GUI and vice-versa.
 
 | Milestone | Scope | Outcome |
 |---|---|---|
-| **M1 — "Noob-safe v1.1"** (P0 fixes + §0) | threshold, storage home, sanitize XSS, bind localhost, dedupe, drop fake seed KB | Safe foundation |
-| **M2 — "Noob can do it"** | First-run wizard, plain-language pass, Error Doctor, modes, chat streaming + honest don't-know, KB pack export/import with wizard | The headline promise works: noob → RAG → own AI → moves it to another device |
+| **M1 — "Noob-safe v1.1"** ✅ *shipped* | threshold, storage home, sanitize XSS, bind localhost, dedupe, drop fake seed KB | Safe foundation |
+| **M2 — "Noob can do it"** *(in progress)* | KB pack export/import ✅ · First-run wizard · plain-language pass · Error Doctor · modes · chat streaming + honest don't-know ✅ (server + banner) | The headline promise works: noob → RAG → own AI → moves it to another device |
 | **M3 — "RAG that works"** | hybrid search, reranking, smart chunking, token budgeting, multi-turn, Model Forge v1, fit-analysis | Measurable retrieval quality + real "create your AI" moment |
 | **M4 — "Product"** | SQLite vector store, eval harness, tests/CI, CLI parity, LAN share, backups, connectors | Production-ready for a real user base |
 

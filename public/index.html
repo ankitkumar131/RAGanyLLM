@@ -573,6 +573,33 @@
         <div style="font-size:0.8rem; color:var(--text-muted)">
           Total Chunks: <strong id="kb-chunks" style="color:white">0</strong> | Docs: <strong id="kb-docs" style="color:white">0</strong>
         </div>
+
+        <!-- Portable Knowledge Pack: Export / Import (cross-device) -->
+        <div style="display:flex; gap:0.4rem; margin-top:0.5rem">
+          <button id="btn-export-kb" class="btn-secondary" style="flex:1; padding:0.4rem 0.3rem; font-size:0.78rem" onclick="exportKb()" title="Save your knowledge base as a portable .raganyllm file you can import on another device">⬆ Export KB</button>
+          <button id="btn-import-kb" class="btn-secondary" style="flex:1; padding:0.4rem 0.3rem; font-size:0.78rem" onclick="document.getElementById('kb-pack-file').click()" title="Import a .raganyllm knowledge pack from another device">⬇ Import KB</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.4rem; margin-top:0.35rem">
+          <select id="import-mode-select" style="flex:1; font-size:0.72rem; padding:0.25rem 0.35rem; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px" title="How to add imported knowledge to this device">
+            <option value="merge">Merge with existing KB (skip duplicates)</option>
+            <option value="replace">Replace entire KB with the pack</option>
+          </select>
+          <span style="font-size:0.7rem; color:var(--text-muted)">import mode</span>
+        </div>
+        <input type="file" id="kb-pack-file" accept=".raganyllm,application/json,.json" style="display:none" onchange="importKb()">
+
+        <!-- Progress Loader for Pack Import -->
+        <div id="progress-pack" class="progress-container">
+          <div class="progress-header">
+            <span class="progress-title">Importing Knowledge Pack...</span>
+            <span id="percent-pack" class="progress-percent">0%</span>
+          </div>
+          <div class="progress-track">
+            <div id="bar-pack" class="progress-fill"></div>
+          </div>
+          <div id="status-pack" class="progress-status">Reading pack file...</div>
+        </div>
+
         <ul id="kb-list" class="kb-list">
           <li class="kb-item" style="color:var(--text-muted)">No documents loaded yet.</li>
         </ul>
@@ -1024,6 +1051,60 @@
       if (!confirm("Are you sure you want to clear the entire Knowledge Base?")) return;
       await fetch('/api/clear-kb', { method: 'POST' });
       loadModelsAndStatus();
+    }
+
+    async function exportKb() {
+      const btn = document.getElementById('btn-export-kb');
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<div class="spinner"></div> Exporting...`;
+      try {
+        const res = await fetch('/api/kb/export');
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try { detail = (await res.json()).detail || detail; } catch (e) { /* ignore */ }
+          alert(`Export failed: ${detail}`);
+          return;
+        }
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `raganyllm-kb-${new Date().toISOString().slice(0, 10)}.raganyllm`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      } catch (e) {
+        alert(`Export failed: ${e.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
+    }
+
+    async function importKb() {
+      const input = document.getElementById('kb-pack-file');
+      const file = input.files && input.files[0];
+      if (!file) return alert('Choose a .raganyllm knowledge pack file first.');
+
+      const mode = document.getElementById('import-mode-select').value;
+      if (mode === 'replace') {
+        const ok = confirm('REPLACE mode: this will DELETE your current knowledge base on this device and replace it with the contents of the pack.\n\nContinue?');
+        if (!ok) { input.value = ''; return; }
+      }
+
+      const formData = new FormData();
+      formData.append('pack', file);
+      formData.append('mode', mode);
+
+      const btn = document.getElementById('btn-import-kb');
+      await executeIngestStream(
+        '/api/kb/import',
+        { method: 'POST', body: formData },
+        'progress-pack', 'percent-pack', 'bar-pack', 'status-pack',
+        btn
+      );
+      input.value = '';
     }
 
     async function sendQuery() {

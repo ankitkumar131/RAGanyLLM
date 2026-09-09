@@ -1,6 +1,6 @@
 {
   "name": "raganyllm",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Universal local RAG Studio CLI for any Ollama LLM with interactive setup, external SSD support, and real-time streaming progress",
   "main": "lib/server.js",
   "bin": {
