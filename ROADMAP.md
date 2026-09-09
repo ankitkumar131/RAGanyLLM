@@ -85,10 +85,9 @@ The current pipeline is: chunk (600 chars) → embed → top-k cosine → stuff 
 - Prompt templates per model family (Llama, Qwen, Gemma, DeepSeek…) since instruction-following formats differ.
 
 ### 2.4 Conversational RAG (P1 · M)
-- **Multi-turn memory**: chat history + follow-up rewriting ("and what about its price?" → rewritten with the prior topic).
-- Optional **memory window slider** (last N messages); show token usage per turn.
-- **Streaming responses** (SSE token-by-token) with a Stop button — non-negotiable for perceived speed of local models.
-- Sources always clickable/expandable; answer sentences mapped to source chunks where possible (grounded-citation view).
+- [x] **Multi-turn memory**: chat history is tracked per conversation and sent to `/api/query` (client keeps last 12 messages; server validates roles — only `user`/`assistant`, no system-prompt injection — clamps to the most recent 12, caps per-message length, and places history after any RAG system prompt so follow-ups like "and what about its price?" stay in context). "🧹 New Chat" button clears the conversation + memory. *(done — remaining: query *rewriting* of follow-ups, memory-window slider, per-turn token usage)*
+- [x] **Streaming responses** (SSE token-by-token) with a Stop button. *(done — see §7/chat streaming)*
+- Sources always clickable/expandable; answer sentences mapped to source chunks where possible (grounded-citation view). *(sources accordion done; per-sentence grounding open)*
 
 ### 2.5 RAG evaluation harness (P1 · L — what separates demos from products)
 - Built-in **"Test my knowledge base"** wizard: user pastes 10–20 Q&A pairs (or imports from CSV/JSONL), the app measures **hit-rate, MRR, answer-accuracy, hallucination rate** and shows which questions *fail* and why (retrieval miss vs. generation error).

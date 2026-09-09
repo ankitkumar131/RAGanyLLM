@@ -628,6 +628,7 @@
           <div style="font-size:0.85rem; color:var(--text-muted)">
             Active LLM: <strong id="active-model-display" style="color:#c084fc">None Selected</strong>
           </div>
+          <button class="sources-btn" style="font-size:0.75rem; padding:0.3rem 0.6rem" title="Start a new conversation (clears conversation memory)" onclick="clearChat()">🧹 New Chat</button>
           <button class="btn-icon" title="Settings" onclick="openSettingsModal()">⚙️</button>
         </div>
       </div>
@@ -713,6 +714,7 @@
   <script>
     let globalModels = [];
     let lastStatusData = null; // latest /api/models payload (used by Settings modal)
+    let chatHistory = []; // completed turns of the current conversation (sent to /api/query)
 
     async function loadModelsAndStatus() {
       try {
@@ -1275,6 +1277,15 @@
       return html;
     }
 
+    function clearChat() {
+      const chatWindow = document.getElementById('chat-window');
+      if (chatWindow.querySelector('.chat-bubble')) {
+        if (!confirm('Start a new chat? The current conversation (and its memory) will be cleared.')) return;
+      }
+      chatWindow.querySelectorAll('.chat-bubble').forEach(b => b.remove());
+      chatHistory = [];
+    }
+
     async function sendQuery() {
       const input = document.getElementById('query-input');
       const query = input.value.trim();
@@ -1340,7 +1351,7 @@
         const res = await fetch('/api/query', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, model, use_rag: useRag, stream: true }),
+          body: JSON.stringify({ query, model, use_rag: useRag, stream: true, history: chatHistory.slice(-12) }),
           signal: ctrl.signal
         });
 
@@ -1392,7 +1403,10 @@
         if (e.name === 'AbortError') {
           // User pressed Stop — keep whatever was streamed so far.
           if (statusLine) statusLine.remove();
-          if (rawAnswer.trim()) renderAnswer();
+          if (rawAnswer.trim()) {
+            renderAnswer();
+            chatHistory.push({ role: 'user', content: query }, { role: 'assistant', content: rawAnswer });
+          }
           answerDiv.insertAdjacentHTML('beforeend', answerSourcesFooter(meta, '⏹ Stopped — answer may be incomplete.'));
         } else {
           errored = true;
@@ -1413,7 +1427,9 @@
         if (!rawAnswer.trim()) {
           answerDiv.style.display = 'block';
           answerDiv.innerHTML = '<span style="color:#9ca3af">(The model returned an empty response.)</span>';
+          chatHistory.push({ role: 'user', content: query }, { role: 'assistant', content: '(empty response)' });
         } else {
+          chatHistory.push({ role: 'user', content: query }, { role: 'assistant', content: rawAnswer });
           renderAnswer();
           const tb = document.createElement('div');
           tb.style.cssText = 'display:flex; gap:0.5rem; margin-top:0.55rem';
