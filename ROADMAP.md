@@ -46,7 +46,7 @@ A 4-step guided setup the first time the app runs (and re-runnable from Settings
 
 ### 1.2 Plain-language everything (P0 · M)
 - Replace every technical status with human text + a "Why?" tooltip: "embedding" → "Teaching the AI to understand your words"; "vector store" → "Your AI's memory"; "chunking" → "Cutting documents into readable pieces".
-- First-class **Error Doctor**: every error gets an icon, a plain explanation, the fix, and a "Fix it for me" button (e.g. "Ollama is not running" → button "Start Ollama").
+- First-class **Error Doctor**: every error gets an icon, a plain explanation, the fix, and a "Fix it for me" button (e.g. "Ollama is not running" → button "Start Ollama"). *(partial: `friendlyError()` now maps common failures — Ollama down, model not installed, embedding failure, oversized context — into plain-language hints in the chat UI; "Fix it for me" action buttons still open)*
 - **Status traffic light** always visible: 🟢 Ready to chat / 🟡 Needs attention / 🔴 Setup required, with one-line reason.
 
 ### 1.3 Modes (P0 · S)
@@ -206,7 +206,7 @@ Same bundle format, so a CLI-exported pack imports in the GUI and vice-versa.
 
 ## 7. 🎨 UI/UX upgrades (make it feel like a product, not a demo)
 
-- [ ] **[P0 · S] Chat quality**: streaming text, code blocks with copy + language highlight, LaTeX, tables, message actions (copy / regenerate / thumbs).
+- [x] **[P0 · S] Chat streaming** — `/api/query` accepts `stream: true` and emits SSE events (`meta` → `token*` → `end`); the UI renders tokens live with a ⏹ Stop button and the server tolerates client disconnects. *(done — remaining from the broader chat-quality bullet: code-block copy buttons, message actions, LaTeX/tables polish)*
 - [ ] **[P1 · S] KB explorer**: list documents with chunk counts, preview/delete/update-per-doc, per-doc re-embed, tags.
 - [ ] **[P1 · S] Conversation sidebar**: multiple chats, rename, clear, export chat as Markdown.
 - [ ] **[P1 · S] Responsive + accessible**: keyboard nav, ARIA labels on the modal/accordions, focus traps, larger hit targets.
@@ -227,7 +227,7 @@ Same bundle format, so a CLI-exported pack imports in the GUI and vice-versa.
 | Milestone | Scope | Outcome |
 |---|---|---|
 | **M1 — "Noob-safe v1.1"** ✅ *shipped* | threshold, storage home, sanitize XSS, bind localhost, dedupe, drop fake seed KB | Safe foundation |
-| **M2 — "Noob can do it"** *(in progress)* | KB pack export/import ✅ · First-run wizard · plain-language pass · Error Doctor · modes · chat streaming + honest don't-know ✅ (server + banner) | The headline promise works: noob → RAG → own AI → moves it to another device |
+| **M2 — "Noob can do it"** *(in progress)* | KB pack export/import ✅ · chat streaming + Stop ✅ · friendly error hints ✅ (partial Error Doctor) · honest don't-know ✅ · First-run wizard · plain-language pass · modes | The headline promise works: noob → RAG → own AI → moves it to another device |
 | **M3 — "RAG that works"** | hybrid search, reranking, smart chunking, token budgeting, multi-turn, Model Forge v1, fit-analysis | Measurable retrieval quality + real "create your AI" moment |
 | **M4 — "Product"** | SQLite vector store, eval harness, tests/CI, CLI parity, LAN share, backups, connectors | Production-ready for a real user base |
 

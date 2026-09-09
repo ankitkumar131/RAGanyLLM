@@ -1107,6 +1107,70 @@
       input.value = '';
     }
 
+    let activeStreamCtrl = null;
+
+    function stopStreaming() {
+      if (activeStreamCtrl) activeStreamCtrl.abort();
+    }
+
+    // Plain-language hints for common failures (ROADMAP: Error Doctor, v1).
+    function friendlyError(msg) {
+      const m = String(msg || '');
+      if (/fetch failed|ECONNREFUSED|connect ECONNREFUSED|localhost:11434|127\.0\.0\.1:11434/i.test(m)) {
+        return 'Cannot reach the Ollama engine. Make sure Ollama is running (open the Ollama app or run `ollama serve`), then try again.';
+      }
+      if (/model ['"]?[\w\/.:-]+['"]? not found|model .* not installed|doesn't match a model|no model/i.test(m)) {
+        return 'That AI model is not installed in Ollama yet. Open ⚙️ Settings to see your installed models, then pull the model in Ollama first (e.g. `ollama pull llama3.2`).';
+      }
+      if (/embedding/i.test(m)) {
+        return 'The embedding step failed — Ollama may still be starting up or the embedding model is missing. Wait a moment and try again.';
+      }
+      if (/context|prompt is too long|token/i.test(m)) {
+        return 'This request is too large for the selected model\'s context window. Try a smaller knowledge base, or ask a shorter question.';
+      }
+      return m;
+    }
+
+    function answerSourcesFooter(meta, statusNote) {
+      const useRag = meta ? meta.rag_enabled : false;
+      const ragStatus = meta ? meta.rag_status : '';
+      const sources = (meta && meta.retrieved_sources) || [];
+      let html = '';
+
+      if (sources.length > 0) {
+        const srcId = 'src-' + Math.random().toString(36).substr(2, 9);
+        html += `
+          <div class="sources-accordion">
+            <button class="sources-btn" onclick="document.getElementById('${srcId}').classList.toggle('open')">
+              🔍 Retrieved Knowledge Base Sources (${sources.length}) ▼
+            </button>
+            <div id="${srcId}" class="sources-body">
+              ${sources.map(s => `
+                <div class="source-card">
+                  <div class="source-header">
+                    <span>📄 ${escapeHtml(s.doc_title)}</span>
+                    <span>Match: ${Math.round(s.similarity_score * 100)}%</span>
+                  </div>
+                  <div style="color:#9ca3af">${escapeHtml(s.content)}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      } else if (!useRag) {
+        html += `<div style="margin-top:0.5rem; font-size:0.75rem; color:#9ca3af; font-style:italic">⚡ Direct raw model response (Live RAG disabled)</div>`;
+      } else if (ragStatus === 'no_context') {
+        html += `<div style="margin-top:0.5rem; font-size:0.78rem; color:#fbbf24; background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.25); border-radius:8px; padding:0.5rem 0.7rem; line-height:1.4">⚠️ <strong>No relevant context found</strong> in your knowledge base for this question (below the similarity threshold). The answer above is the model responding without your documents — add matching documents and try again.</div>`;
+      } else if (ragStatus === 'embedding_error') {
+        html += `<div style="margin-top:0.5rem; font-size:0.78rem; color:#f87171; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:8px; padding:0.5rem 0.7rem">⚠️ Your knowledge base could not be searched (embedding error). This answer may not use your documents.</div>`;
+      }
+
+      if (statusNote) {
+        html += `<div style="margin-top:0.5rem; font-size:0.75rem; color:var(--text-muted); font-style:italic">${statusNote}</div>`;
+      }
+      return html;
+    }
+
     async function sendQuery() {
       const input = document.getElementById('query-input');
       const query = input.value.trim();
@@ -1130,70 +1194,127 @@
       `;
       chatWindow.appendChild(userBubble);
 
-      // Bot Placeholder
+      // Assistant Bubble (streaming)
       const botBubble = document.createElement('div');
       botBubble.className = 'chat-bubble assistant';
-      const statusText = useRag ? `Performing vector search & generating answer with ${model}...` : `Querying raw model ${model} (Live RAG disabled)...`;
+      const statusText = useRag ? `Searching your knowledge base & thinking...` : `Asking ${model} (Live RAG disabled)...`;
       botBubble.innerHTML = `
         <div class="avatar assistant">AI</div>
         <div class="message-content">
-          <div style="display:flex; align-items:center; gap:0.5rem; color:var(--text-muted)">
-            <div class="spinner"></div> ${statusText}
+          <div class="stream-status" id="stream-status" style="display:flex; align-items:center; gap:0.5rem; color:var(--text-muted); font-size:0.85rem">
+            <div class="spinner"></div> <span>${statusText}</span>
+            <button class="sources-btn" id="stream-stop-btn" style="margin-left:auto; font-size:0.72rem; padding:0.2rem 0.55rem">⏹ Stop</button>
           </div>
+          <div class="stream-answer" id="stream-answer" style="display:none"></div>
         </div>
       `;
       chatWindow.appendChild(botBubble);
       chatWindow.scrollTop = chatWindow.scrollHeight;
 
+      const statusLine = document.getElementById('stream-status');
+      const answerDiv = document.getElementById('stream-answer');
+      const stopBtn = document.getElementById('stream-stop-btn');
+      stopBtn.addEventListener('click', stopStreaming);
+
+      const ctrl = new AbortController();
+      activeStreamCtrl = ctrl;
+
+      let rawAnswer = '';
+      let meta = null;
+      let finishedNormally = false;
+      let errored = false;
+
+      const renderAnswer = () => {
+        answerDiv.style.display = 'block';
+        let html = marked.parse(rawAnswer || '…');
+        if (typeof DOMPurify !== 'undefined') html = DOMPurify.sanitize(html);
+        answerDiv.innerHTML = html;
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+      };
+
       try {
         const res = await fetch('/api/query', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ query, model, use_rag: useRag })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, model, use_rag: useRag, stream: true }),
+          signal: ctrl.signal
         });
-        const data = await res.json();
 
-        // LLM output may contain HTML — render markdown, then sanitize before
-        // inserting into innerHTML (blocks script/XSS from model output).
-        let htmlAnswer = marked.parse(data.answer || "No response.");
-        if (typeof DOMPurify !== 'undefined') {
-          htmlAnswer = DOMPurify.sanitize(htmlAnswer);
+        if (!res.ok || !res.body) {
+          let detail = `Request failed (HTTP ${res.status})`;
+          try { detail = (await res.json()).detail || detail; } catch (e) { /* ignore */ }
+          throw new Error(detail);
         }
 
-        let sourcesHtml = '';
-        if (data.retrieved_sources && data.retrieved_sources.length > 0) {
-          const srcId = 'src-' + Math.random().toString(36).substr(2, 9);
-          sourcesHtml = `
-            <div class="sources-accordion">
-              <button class="sources-btn" onclick="document.getElementById('${srcId}').classList.toggle('open')">
-                🔍 Retrieved Knowledge Base Sources (${data.retrieved_sources.length}) ▼
-              </button>
-              <div id="${srcId}" class="sources-body">
-                ${data.retrieved_sources.map(s => `
-                  <div class="source-card">
-                    <div class="source-header">
-                      <span>📄 ${escapeHtml(s.doc_title)}</span>
-                      <span>Match: ${Math.round(s.similarity_score * 100)}%</span>
-                    </div>
-                    <div style="color:#9ca3af">${escapeHtml(s.content)}</div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `;
-        } else if (!useRag) {
-          sourcesHtml = `<div style="margin-top:0.5rem; font-size:0.75rem; color:#9ca3af; font-style:italic">⚡ Direct raw model response (Live RAG disabled)</div>`;
-        } else if (data.rag_status === 'no_context') {
-          sourcesHtml = `<div style="margin-top:0.5rem; font-size:0.78rem; color:#fbbf24; background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.25); border-radius:8px; padding:0.5rem 0.7rem; line-height:1.4">⚠️ <strong>No relevant context found</strong> in your knowledge base for this question (below the similarity threshold). The answer above is the model responding without your documents — add matching documents and try again.</div>`;
-        } else if (data.rag_status === 'embedding_error') {
-          sourcesHtml = `<div style="margin-top:0.5rem; font-size:0.78rem; color:#f87171; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:8px; padding:0.5rem 0.7rem">⚠️ Your knowledge base could not be searched (embedding error). This answer may not use your documents.</div>`;
-        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
 
-        botBubble.querySelector('.message-content').innerHTML = htmlAnswer + sourcesHtml;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          let sep;
+          while ((sep = buffer.indexOf('\n\n')) !== -1) {
+            const raw = buffer.slice(0, sep);
+            buffer = buffer.slice(sep + 2);
+            if (!raw.startsWith('data:')) continue;
+            const line = raw.replace(/^data:\s?/, '').trim();
+            if (!line) continue;
+            let ev;
+            try { ev = JSON.parse(line); } catch (e) { continue; }
+
+            if (ev.type === 'meta') {
+              meta = ev;
+            } else if (ev.type === 'token') {
+              if (meta === null) meta = {};
+              rawAnswer += ev.content;
+              if (rawAnswer.trim()) {
+                if (statusLine) statusLine.remove();
+                renderAnswer();
+              }
+            } else if (ev.type === 'error') {
+              errored = true;
+              if (statusLine) statusLine.remove();
+              answerDiv.style.display = 'block';
+              answerDiv.innerHTML = `<span style="color:#ef4444">⚠️ ${escapeHtml(friendlyError(ev.detail))}</span>`;
+            } else if (ev.type === 'end') {
+              finishedNormally = ev.reason !== 'error';
+            }
+          }
+        }
       } catch (e) {
-        botBubble.querySelector('.message-content').innerHTML = `<span style="color:#ef4444">Error: ${e.message}</span>`;
+        if (e.name === 'AbortError') {
+          // User pressed Stop — keep whatever was streamed so far.
+          if (statusLine) statusLine.remove();
+          if (rawAnswer.trim()) renderAnswer();
+          answerDiv.insertAdjacentHTML('beforeend', answerSourcesFooter(meta, '⏹ Stopped — answer may be incomplete.'));
+        } else {
+          errored = true;
+          if (statusLine) statusLine.remove();
+          answerDiv.style.display = 'block';
+          answerDiv.innerHTML = `<span style="color:#ef4444">⚠️ ${escapeHtml(friendlyError(e.message))}</span>`;
+          answerDiv.insertAdjacentHTML('beforeend', answerSourcesFooter(meta, ''));
+        }
       } finally {
+        activeStreamCtrl = null;
+        stopBtn.remove();
         chatWindow.scrollTop = chatWindow.scrollHeight;
+      }
+
+      // Normal completion → append sources / status footer.
+      if (!errored && finishedNormally) {
+        if (statusLine) statusLine.remove();
+        if (!rawAnswer.trim()) {
+          answerDiv.style.display = 'block';
+          answerDiv.innerHTML = '<span style="color:#9ca3af">(The model returned an empty response.)</span>';
+        } else {
+          renderAnswer();
+        }
+        answerDiv.insertAdjacentHTML('beforeend', answerSourcesFooter(meta, ''));
+      } else if (errored) {
+        // error already rendered inline above
       }
     }
 
