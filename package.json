@@ -13,7 +13,11 @@
   ],
   "preferGlobal": true,
   "scripts": {
-    "start": "node bin/cli.js"
+    "start": "node bin/cli.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "keywords": [
     "ollama",

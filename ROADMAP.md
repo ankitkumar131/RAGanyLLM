@@ -197,8 +197,8 @@ Same bundle format, so a CLI-exported pack imports in the GUI and vice-versa.
 
 - [x] **[P0 · M] Local-first security**: binds `127.0.0.1` (`HOST` env to open); same-origin API with an origin guard (403 for untrusted web pages; `cors` package removed); upload size/count limits (25 MB × 10 files, 200 MB pack, 25 MB JSON); LLM output sanitized via DOMPurify; delete-model verifies against `/api/tags` before deleting. *(done; zip-slip checks apply once packs become ZIPs)*
 - [ ] **[P1 · M] Optional LAN mode with PIN** — if the user enables "allow other devices", require a PIN shown in the app (covers 5.4's share without opening the whole API).
-- [ ] **[P1 · M] Tests**: unit — chunker boundaries, dedupe, threshold math, cosine/normalization, pack round-trip (export → import → same stats); integration — fake-Ollama server tests every endpoint incl. streaming progress; E2E — first-run wizard, import/merge.
-- [ ] **[P1 · S] `engines` field + CI** (GitHub Actions: lint + test on Node 18/20/22) + a real LICENSE file.
+- [x] **[P1 · M] Tests** — `npm test` (`node --test`): unit (chunker, dedupe, load-heal, threshold gating, doc removal, BM25/hybrid recovery, config clamping + partial-update preservation) and integration against an in-process fake Ollama (models, config round-trip, vector-vs-hybrid queries, JSON + RAG-off role ordering + history, SSE streaming, origin guard, model-delete verification, pack export→clear→import→dedupe, per-doc delete, plain exports, samples, analyze-fit + build warning). 24 tests passing. *(E2E browser flows still open)*
+- [x] **[P1 · S] `engines` field** (`>=18`). *(CI GitHub Actions + LICENSE file still open)*
 - [ ] **[P1 · S] Logging & crash-proofing**: structured local logs (`~/.raganyllm/logs`), the UI stays alive if Ollama dies mid-chat ("Reconnect" banner).
 - [ ] **[P2 · M] Optional local telemetry** (opt-in, aggregate, never leaves device by default) so you can see which features noobs actually use.
 
